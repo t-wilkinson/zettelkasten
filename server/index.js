@@ -11,7 +11,7 @@ const zettelkastenDir = process.argv[2]
 app.use(async (ctx, next) => {
   await next()
   const rt = ctx.response.get('X-Response-Time');
-  console.log(`${ctx.method} ${ctx.url} - ${rt}`)
+  console.info(`${ctx.method} ${ctx.url} - ${rt}`)
 })
 
 app.use(async (ctx, next) => {
@@ -46,5 +46,5 @@ app
   .use(router.allowedMethods())
 
 const port = 4000
-console.log(`Listening on port ${port}`)
+console.info(`Listening on port ${port}`)
 app.listen(port)

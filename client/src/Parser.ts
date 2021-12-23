@@ -12,29 +12,45 @@ export interface Ctx {
   i: number
 }
 
-export interface Response<Value=any> {
+export interface Response<Value = any> {
   ctx: Ctx
   success: boolean
   value?: Value
   reason?: string
 }
 
-export type Parser<Value=any> = (ctx: Ctx) => Response<Value>
+export type Parser<Value = any> = (ctx: Ctx) => Response<Value>
 
-export type R<Value=any> = Response<Value>
+export type R<Value = any> = Response<Value>
 export type C = Ctx
-export type P<Value=any> = Parser<Value>
+export type P<Value = any> = Parser<Value>
 
-export const run = (text: string, p: P) => p({text, i: 0})
-export const success = (ctx: C, value: any='', i=ctx.i) => ({ ctx: {...ctx, i}, value, success: true })
-const failure = (ctx: C, reason="Failed for unknown reason") => ({ctx, reason, success: false })
+export const run = (text: string, p: P) => p({ text, i: 0 })
+export const success = <Value = any>(ctx: C, value: Value = '' as any, i = ctx.i) => ({
+  ctx: { ...ctx, i },
+  value,
+  success: true,
+})
+const failure = (ctx: C, reason = 'Failed for unknown reason') => ({
+  ctx,
+  reason,
+  success: false,
+})
 
 // Apply parser to ctx and return result along with other variables in scope
-export const bind = <Value=any>(fn: (r: R, ctx: C, p: P, ...args: any[]) => R<Value>) => (p: P, ...args: any[]) => (ctx: C) => fn(p(ctx), ctx, p, ...args)
+// Useful helper function for defining many parsers in oneline
+export const bind =
+  <Return = any, Value = any>(
+    fn: (r: R<Value>, ctx: C, p: P<Value>, ...args: any[]) => R<Return>
+  ) =>
+  (p: P<Value>, ...args: any[]) =>
+  (ctx: C) =>
+    fn(p(ctx), ctx, p, ...args)
+export const map = bind((r, _ctx, _p, fn: (value: any) => R) =>
+  r.success ? success(r.ctx, fn(r.value)) : r
+)
 
-export const map = bind((r, _ctx, _p, fn: (value: any) => R) => r.success ? success(r.ctx, fn(r.value)) : r)
-
-export const many = bind((r, ctx, p) => {
+export const many: <Value>(p: P<Value>) => (ctx: C) => R<Value[]> = bind((r, ctx, p) => {
   let values = []
   while (true) {
     if (!r.success) {
@@ -46,28 +62,35 @@ export const many = bind((r, ctx, p) => {
   }
 })
 
-const combine = bind((r1, _ctx, _p1, p2): R => {
-  if (!r1.success) return r1
-  const r2 = p2(r1.ctx)
-  return {...r2, value: r1.value + r2.value }
-})
-export const not = bind((r, ctx) => r.success ? failure(ctx, `Not supposed to match parser with ${r.value}`) : success(ctx))
-export const optional = bind((r, ctx) => r.success ? success(r.ctx, r.value) : success(ctx))
-export const either = bind((r, ctx, _p1, p2) => r.success ? r : p2(ctx))
-export const some = bind((r, _ctx, p) => {
+export const some: <Value>(p: P<Value>) => (ctx: C) => R<Value[]> = bind((r, _ctx, p) => {
   if (!r.success) {
-    return r
+    return { ...r, value: [] }
   } else {
     const r2 = many(p)(r.ctx)
     r2.value.unshift(r.value)
     return r2
   }
 })
-export const any = (...ps: P[]) => ps.length === 0 ? success : ps.reduce(either as any)
-export const empty = (ctx: C) => success(ctx, '')
-export const seq = (...ps: P[]) => ps.length === 0 ? success : ps.reduce(combine as any)
-export const s = (strings: TemplateStringsArray) => str(strings[0])
 
+const combine = bind((r1, _ctx, _p1, p2): R => {
+  if (!r1.success) return r1
+  const r2 = p2(r1.ctx)
+  return { ...r2, value: r1.value + r2.value }
+})
+
+export const ignore = bind((r, _ctx, _p1, p2) => (r.success ? p2(r.ctx) : r))
+export const optional = bind((r, ctx) => (r.success ? success(r.ctx, r.value) : success(ctx)))
+export const sequence = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(combine))
+export const any: Any = (...ps: P[]) => (ps.length === 0 ? success : ps.reduceRight(either))
+export const eof = (ctx: C) => ctx.i === ctx.text.length - 1
+
+export const either: <V1, V2>(p1: P<V1>, p2: P<V2>) => (ctx: C) => R<V1 | V2> = bind(
+  (r, ctx, _p1, p2) => (r.success ? r : p2(ctx))
+)
+
+// type Any = <T extends P[]>(...ps: T) => (ctx: C) => ReturnType<T[number]>
+type Any = any
+export const s = (strings: TemplateStringsArray) => str(strings[0])
 export const str = (str: string) => (ctx: C) => {
   const s = ctx.i
   const e = s + str.length
@@ -86,8 +109,7 @@ export const regexp = (regexp: RegExp) => (ctx: C) => {
   return success(ctx, res[0], ctx.i + res[0].length)
 }
 
-// TODO: instead of next make it callable?
-export class Acc<Value=any> {
+export class Acc {
   r$: R // The last response
   initialCtx: C
 
@@ -95,7 +117,7 @@ export class Acc<Value=any> {
     this.initialCtx = ctx
   }
 
-  next(p: P) {
+  next<Value = any>(p: P<Value>): Value {
     if (!this.r$) {
       this.r$ = p(this.initialCtx)
       return this.r$.value
@@ -105,16 +127,13 @@ export class Acc<Value=any> {
     return this.r$.value
   }
 
-  end(value: Value) {
+  end<Value = any>(value: Value) {
     return { ...this.r$, value }
   }
 }
 
-// export const ignore = bind((r1, _ctx, _p1, p2) => {
-//   if (!r1.success) return r1
-//   const r2 = p2(r1.ctx)
-//   return {...r2, value: r2.value }
-// })
+// Doing this requires passing backtracking information on all failures
+// export const not = bind((r, ctx) => r.success ? failure(ctx, `Not supposed to match parser with ${r.value}`) : success(r.ctx, ctx.text.substring(ctx.i, r.ctx.i)))
 
 // export const ignoreSeq = (...ps: P[]) => ps.length === 0 ? success : ps.reduce(ignore as any)
 
