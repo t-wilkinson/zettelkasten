@@ -10,7 +10,8 @@ export const tag = P.regexp(/@+/)
 
 export const notnewline = P.regexp(/^[^\n]/)
 export const notcode = P.regexp(/[^$]+/)
-export const plaintext = P.regexp(/^[^$\n]+/)
+export const notquote = P.regexp(/[^"]+/)
+export const plaintext = P.regexp(/^[^$"\n]+/)
 
 export const alphanumeric = P.regexp(/^[A-Za-z0-9]+/)
 export const operator = P.regexp(/^ (:|:=|<->|<-|->|~>|<=>|=>|!=|==|\+|vs\.) /)

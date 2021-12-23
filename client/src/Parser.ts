@@ -30,7 +30,7 @@ export const success = (ctx: C, value: any='', i=ctx.i) => ({ ctx: {...ctx, i}, 
 const failure = (ctx: C, reason="Failed for unknown reason") => ({ctx, reason, success: false })
 
 // Apply parser to ctx and return result along with other variables in scope
-export const bind = (fn: (r: R, ctx: C, p: P, ...args: any[]) => R) => (p: P, ...args: any[]) => (ctx: C) => fn(p(ctx), ctx, p, ...args)
+export const bind = <Value=any>(fn: (r: R, ctx: C, p: P, ...args: any[]) => R<Value>) => (p: P, ...args: any[]) => (ctx: C) => fn(p(ctx), ctx, p, ...args)
 
 export const map = bind((r, _ctx, _p, fn: (value: any) => R) => r.success ? success(r.ctx, fn(r.value)) : r)
 
@@ -86,7 +86,8 @@ export const regexp = (regexp: RegExp) => (ctx: C) => {
   return success(ctx, res[0], ctx.i + res[0].length)
 }
 
-export class Acc {
+// TODO: instead of next make it callable?
+export class Acc<Value=any> {
   r$: R // The last response
   initialCtx: C
 
@@ -104,7 +105,7 @@ export class Acc {
     return this.r$.value
   }
 
-  end(value: any) {
+  end(value: Value) {
     return { ...this.r$, value }
   }
 }

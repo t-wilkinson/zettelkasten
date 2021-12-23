@@ -78,11 +78,23 @@ describe("Syntax", () => {
     value('    [text](link)', S.line, {lineitem: {text: 'text', link: 'link'}, text: ''})
   })
 
+  test('indent', () => {
+    value('    ', S.indent, {  indent: 4 })
+    value('    asdf', S.indent, { indent: 4 })
+    value('asdf    ', S.indent, { indent: 0 })
+  })
+
   test('text', () => {
-    value('asdf $code$ asdf', S.text, [{text: 'asdf '}, {code: 'code'}, {text: ' asdf'}])
+    value('asdf $code$ asdf', S.text, [{text: 'asdf '}, {text: 'code'}, {text: ' asdf'}])
+    value('asdf "quote" asdf', S.text, [{text: 'asdf '}, {text: 'quote'}, {text: ' asdf'}])
+    value('asdf "quote" $code$ asdf', S.text, [{text: 'asdf '}, {text: 'quote'}, {text: ' '}, {text: 'code'}, {text: ' asdf'}])
+  })
+
+  test('comment', () => {
+    value('> asdf', S.comment, { text: 'asdf' })
   })
 
   test('code', () => {
-    value('$asdf$', S.code, { code: 'asdf' })
+    value('$asdf$', S.code, { text: 'asdf' })
   })
 })
