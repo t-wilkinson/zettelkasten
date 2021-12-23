@@ -1,0 +1,4 @@
+{
+  "max-line-length": [true, 140],
+  "files": ["**/*.tsx", "**/*.ts", "**/*.js"]
+}

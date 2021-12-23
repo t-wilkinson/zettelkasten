@@ -2,7 +2,7 @@ import * as P from './Parser'
 
 export const space = P.s` `
 export const spaces = P.regexp(/ */)
-export const newline = P.regexp(/^\n/)
+export const newlines = P.regexp(/^\n+/)
 export const sameline = P.regexp(/[^\n]+/)
 export const startofline = P.regexp(/^ */)
 export const comment = P.s`> `

@@ -6,7 +6,7 @@ import * as R from './Renderer'
 import { render } from '@testing-library/react'
 
 function run(str, parser, expects = { value: str }) {
-  expect(P.run(str, parser)).toMatchObject(expects)
+  expect(P.parse(str, parser)).toMatchObject(expects)
 }
 
 const value = (str, parser, value = str) => run(str, parser, { value })
@@ -15,10 +15,6 @@ describe('Parser', () => {
   it('works', () => {
     run('hello', P.sequence(P.s`hel`, P.s`lo`))
   })
-
-  //   test('not', () => {
-  //     value("-", P.not(P.s`.`), '-')
-  //   })
 
   test('some', () => {
     value('---', P.some(P.s`-`), '---'.split(''))
@@ -81,15 +77,24 @@ describe('Syntax', () => {
   })
 
   test('text', () => {
-    value('asdf $code$ asdf', S.text, [{ text: 'asdf ' }, { text: 'code' }, { text: ' asdf' }])
-    value('asdf "quote" asdf', S.text, [{ text: 'asdf ' }, { text: 'quote' }, { text: ' asdf' }])
-    value('asdf "quote" $code$ asdf', S.text, [
-      { text: 'asdf ' },
-      { type: 'quote', text: 'quote' },
-      { text: ' ' },
-      { type: 'code', text: 'code' },
-      { text: ' asdf' },
-    ])
+    value('asdf $code$ asdf', S.text, {
+      type: 'text',
+      text: [{ text: 'asdf ' }, { text: 'code' }, { text: ' asdf' }],
+    })
+    value('asdf "quote" asdf', S.text, {
+      type: 'text',
+      text: [{ text: 'asdf ' }, { text: 'quote' }, { text: ' asdf' }],
+    })
+    value('asdf "quote" $code$ asdf', S.text, {
+      type: 'text',
+      text: [
+        { text: 'asdf ' },
+        { type: 'quote', text: 'quote' },
+        { text: ' ' },
+        { type: 'code', text: 'code' },
+        { text: ' asdf' },
+      ],
+    })
   })
 
   test('link', () => {
@@ -97,171 +102,57 @@ describe('Syntax', () => {
   })
 
   test('comment', () => {
-    value('> asdf', S.comment, { text: 'asdf' })
+    value('> asdf', S.comment, { type: 'comment', text: 'asdf' })
   })
 
-  test.each([
-    [
-      '     - line text',
-      S.lineitem,
-      {
-        type: 'lineitem',
-        lineitem: '-',
-        text: 'line text',
-      },
-    ],
-    [
-      '   ab. line text',
-      S.lineitem,
-      {
-        type: 'lineitem',
-        lineitem: 'ab.',
-        text: 'line text',
-      },
-    ],
-    [
-      'ab.cd.ef. line text',
-      S.lineitem,
-      {
-        type: 'lineitem',
-        lineitem: 'ab.cd.ef.',
-        text: 'line text',
-      },
-    ],
-    [
-      '    [text](link)',
-      S.lineitem,
-      {
-        type: 'lineitem',
-        lineitem: { text: 'text', link: 'link' },
-        text: '',
-      },
-    ],
-  ])('lineitems: %s', value)
+  const line = (lineitem, text, indent) => ({
+    type: 'line',
+    lineitem,
+    text,
+    indent,
+  })
+  const link = (text, link) => ({ text, link, type: 'link' })
+  const plain = text => ({
+    type: 'text',
+    text: text === undefined ? [] : [{ type: 'plaintext', text }],
+  })
+  const comment = text => ({ type: 'comment', text })
+  const empty = (num = 0) => ({ type: 'empty', num })
 
   test.each([
+    ['- line text', S.line, line('-', plain('line text'), 0)],
+    ['    - line text', S.line, line('-', plain('line text'), 4)],
+    ['  ab. line text', S.line, line('ab.', plain('line text'), 2)],
+    ['ab.cd.ef. line text', S.line, line('ab.cd.ef.', plain('line text'), 0)],
+    ['    [text](link)', S.line, line(link('text', 'link'), plain(), 4)],
+    ['    > text', S.line, line(comment('text'), plain(), 4)],
+  ])('line: %s', value)
+
+  test.each([
+    [`  > text`, [line(comment('text'), plain(), 2)]],
     [
-      `
-first
-  - second
-`,
-      S.zettel,
-      [
-        null,
-        [{ text: 'first', type: 'plaintext' }],
-        null,
-        {
-          text: 'second',
-          type: 'lineitem',
-          lineitem: '-',
-          indent: 2,
-        },
-        null,
-      ],
+      `  > one\n  > two`,
+      [line(comment('one'), plain(), 2), empty(), line(comment('two'), plain(), 2)],
     ],
     [
-      `
-- thoughts
-`,
-      S.zettel,
-      [null, { indent: 0, lineitem: '-', text: 'thoughts', type: 'lineitem' }, null],
+      `\nfirst\n  - second\n`,
+      [empty(), plain('first'), empty(), line('-', plain('second'), 2), empty()],
+    ],
+    [`\n- thoughts\n`, [empty(), line('-', plain('thoughts'), 0), empty()]],
+    [
+      `- thoughts\n[text](link)`,
+      [line('-', plain('thoughts'), 0), empty(), line(link('text', 'link'), plain(), 0)],
     ],
     [
-      `- thoughts
-[text](link)
-`,
-      S.zettel,
-      [
-        {
-          indent: 0,
-          lineitem: '-',
-          text: 'thoughts',
-          type: 'lineitem',
-        },
-        null,
-        {
-          indent: 0,
-          lineitem: {
-            link: 'link',
-            text: 'text',
-            type: 'link',
-          },
-          text: '',
-          type: 'lineitem',
-        },
-        null,
-      ],
+      `[text](link)\n- thoughts`,
+      [line(link('text', 'link'), plain(), 0), empty(), line('-', plain('thoughts'), 0)],
     ],
-    [`[text](link)
-- thoughts`,
-      S.zettel,
-      [
-        { type: 'lineitem',
-          indent: 0,
-          text: '',
-          lineitem: {
-            type: 'link',
-            text: 'text',
-            link: 'link',
-          },
-        },
-        null,
-        { indent: 0,
-          lineitem: '-',
-          text: 'thoughts',
-          type: 'lineitem',
-        }
-      ]
-    ],
-
-    // [
-    //   `@@first
-    // @second
-    // - third
-    // [text](link)
-
-    // - more thoughts`,
-    //   S.zettel,
-    //   [
-    //     { type: 'tag', num: 2, text: 'first' },
-    //     { type: 'tag', num: 1, text: 'second' },
-    //     {
-    //       type: 'lineitem',
-    //       lineitem: '-',
-    //       indent: 2,
-    //       text: 'third',
-    //     },
-    //     // {
-    //     //   type: 'lineitem',
-    //     //   indent: 4,
-    //     //   lineitem: {
-    //     //     type: 'link',
-    //     //     text: 'text',
-    //     //     link: 'link',
-    //     //   },
-    //     //   text: '',
-    //     // },
-    //     // {
-    //     //   type: 'lineitem',
-    //     //   indent: 0,
-    //     //   lineitem: '-',
-    //     //   text: 'more thoughts',
-    //     // },
-    //   ],
-    // ],
-  ])('zettel:\n%s', value)
-
-  // test.only('zettel', () => {
-  //   console.dir(P.run(`[text](link)
-// @tag`, S.zettel).value)
-  //   console.dir(P.run(`[text](link)
-// @tag`, P.many(P.any(L.newline, S.tag, S.lineitem))).value)
-  // })
+  ])('zettel:\n%s', (str, v) => value(str, S.zettel, v))
 })
 
 describe('Renderer', () => {
-  it('works', () => {
-    const syntaxes = P.run(
+  it.skip('works', () => {
+    const syntaxes = P.parse(
       `
 @Tag
   - First thought

@@ -25,7 +25,7 @@ export type R<Value = any> = Response<Value>
 export type C = Ctx
 export type P<Value = any> = Parser<Value>
 
-export const run = (text: string, p: P) => p({ text, i: 0 })
+export const parse = (text: string, p: P) => p({ text, i: 0 })
 export const success = <Value = any>(ctx: C, value: Value = '' as any, i = ctx.i) => ({
   ctx: { ...ctx, i },
   value,
@@ -81,6 +81,8 @@ const combine = bind((r1, _ctx, _p1, p2): R => {
 export const ignore = bind((r, _ctx, _p1, p2) => (r.success ? p2(r.ctx) : r))
 export const optional = bind((r, ctx) => (r.success ? success(r.ctx, r.value) : success(ctx)))
 export const sequence = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(combine))
+type Any = any
+// type Any = <T extends P[]>(...ps: T) => (ctx: C) => ReturnType<T[number]>
 export const any: Any = (...ps: P[]) => (ps.length === 0 ? success : ps.reduceRight(either))
 export const eof = (ctx: C) => ctx.i === ctx.text.length - 1
 
@@ -88,8 +90,6 @@ export const either: <V1, V2>(p1: P<V1>, p2: P<V2>) => (ctx: C) => R<V1 | V2> = 
   (r, ctx, _p1, p2) => (r.success ? r : p2(ctx))
 )
 
-// type Any = <T extends P[]>(...ps: T) => (ctx: C) => ReturnType<T[number]>
-type Any = any
 export const s = (strings: TemplateStringsArray) => str(strings[0])
 export const str = (str: string) => (ctx: C) => {
   const s = ctx.i
@@ -97,7 +97,7 @@ export const str = (str: string) => (ctx: C) => {
   if (ctx.text.substring(s, e) === str) {
     return success(ctx, str, e)
   } else {
-    return failure(ctx, `Could not find "${str}" at ${ctx.i}`)
+    return failure(ctx, `Could not find str "${str}" at ${ctx.i}`)
   }
 }
 
