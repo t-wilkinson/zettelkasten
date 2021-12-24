@@ -46,8 +46,8 @@ export const bind =
   (p: P<Value>, ...args: any[]) =>
   (ctx: C) =>
     fn(p(ctx), ctx, p, ...args)
-export const map = bind((r, _ctx, _p, fn: (value: any) => R) =>
-  r.success ? success(r.ctx, fn(r.value)) : r
+export const map: <Value = any>(p: P, fn: (value: any) => Value) => (ctx: C) => R<Value> = bind(
+  (r, _ctx, _p, fn: (value: any) => R) => (r.success ? success(r.ctx, fn(r.value)) : r)
 )
 
 export const many: <Value>(p: P<Value>) => (ctx: C) => R<Value[]> = bind((r, ctx, p) => {
@@ -104,12 +104,12 @@ export const str = (str: string) => (ctx: C) => {
 export const regexp = (regexp: RegExp) => (ctx: C) => {
   const res = regexp.exec(ctx.text.substring(ctx.i))
   if (!res) {
-    return failure(ctx, `Could not match regexp`)
+    return failure(ctx, `Could not match regexp ${regexp.toString()}`)
   }
   return success(ctx, res[0], ctx.i + res[0].length)
 }
 
-export class Acc {
+export class Sequence {
   r$: R // The last response
   initialCtx: C
 
@@ -119,18 +119,36 @@ export class Acc {
 
   next<Value = any>(p: P<Value>): Value {
     if (!this.r$) {
-      this.r$ = p(this.initialCtx)
+      this.r$ = p({...this.initialCtx})
       return this.r$.value
     }
-    if (!this.r$.success) return this.r$.value
+    if (!this.r$.success) return
     this.r$ = p(this.r$.ctx)
     return this.r$.value
   }
 
   end<Value = any>(value: Value) {
+    // return failure(this.initialCtx, this.r$.reason)
+    // if (!this.r$.success) {
+    //   return failure(this.initialCtx, this.r$.reason)
+    // }
     return { ...this.r$, value }
   }
 }
+
+export const Seq: <Value>(fn: (acc: Sequence) => Value) => P<Value> = fn => ctx => {
+  const seq = new Sequence(ctx)
+  const value = fn(seq)
+  return seq.end(value)
+}
+
+export const surrounds = (left: P, inner: P, right: P = left) =>
+  Seq(seq => {
+    seq.next(left)
+    const value = seq.next(inner)
+    seq.next(right)
+    return value
+  })
 
 // Doing this requires passing backtracking information on all failures
 // export const not = bind((r, ctx) => r.success ? failure(ctx, `Not supposed to match parser with ${r.value}`) : success(r.ctx, ctx.text.substring(ctx.i, r.ctx.i)))

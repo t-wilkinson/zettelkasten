@@ -72,38 +72,7 @@ describe('Syntax', () => {
     value('asdf    ', S.indent, 0)
   })
 
-  test('code', () => {
-    value('$asdf$', S.code, { text: 'asdf' })
-  })
-
-  test('text', () => {
-    value('asdf $code$ asdf', S.text, {
-      type: 'text',
-      text: [{ text: 'asdf ' }, { text: 'code' }, { text: ' asdf' }],
-    })
-    value('asdf "quote" asdf', S.text, {
-      type: 'text',
-      text: [{ text: 'asdf ' }, { text: 'quote' }, { text: ' asdf' }],
-    })
-    value('asdf "quote" $code$ asdf', S.text, {
-      type: 'text',
-      text: [
-        { text: 'asdf ' },
-        { type: 'quote', text: 'quote' },
-        { text: ' ' },
-        { type: 'code', text: 'code' },
-        { text: ' asdf' },
-      ],
-    })
-  })
-
-  test('link', () => {
-    value('[text](link)', S.link, { text: 'text', link: 'link' })
-  })
-
-  test('comment', () => {
-    value('> asdf', S.comment, { type: 'comment', text: 'asdf' })
-  })
+  const text = (...values) => ({ type: 'text', text: values })
 
   const line = (lineitem, text, indent) => ({
     type: 'line',
@@ -120,6 +89,32 @@ describe('Syntax', () => {
   const empty = (num = 0) => ({ type: 'empty', num })
 
   test.each([
+    ['$', plain('$')],
+    ['"', plain('"')],
+    // [' => ', text({ text: '=>', type: 'operator' })],
+    // [' =>  text', text({ text: '=>', type: 'operator' }, { text: ' text', type: 'plaintext' })],
+    ['asdf $tex$ asdf', text({ text: 'asdf ' }, { text: 'tex' }, { text: ' asdf' })],
+    ['asdf "quote" asdf', text({ text: 'asdf ' }, { text: 'quote' }, { text: ' asdf' })],
+    [
+      'asdf "quote" $tex$ asdf',
+      text(
+        { text: 'asdf ' },
+        { type: 'quote', text: 'quote' },
+        { text: ' ' },
+        { type: 'inlinetex', text: 'tex' },
+        { text: ' asdf' }
+      ),
+    ],
+  ])('text: %s', (str, expect) => value(str, S.text, expect))
+
+  test('link', () => {
+    value('[text](link)', S.link, { text: 'text', link: 'link' })
+  })
+  test('comment', () => {
+    value('> asdf', S.comment, { type: 'comment', text: 'asdf' })
+  })
+
+  test.each([
     ['- line text', S.line, line('-', plain('line text'), 0)],
     ['    - line text', S.line, line('-', plain('line text'), 4)],
     ['  ab. line text', S.line, line('ab.', plain('line text'), 2)],
@@ -129,6 +124,7 @@ describe('Syntax', () => {
   ])('line: %s', value)
 
   test.each([
+    // [`  => text`, [text({ text: '=>', type: 'operator' }, { text: 'text', type: 'plaintext' })]],
     [`  > text`, [line(comment('text'), plain(), 2)]],
     [
       `  > one\n  > two`,

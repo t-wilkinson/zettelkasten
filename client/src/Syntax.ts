@@ -1,5 +1,6 @@
 import * as P from './Parser'
 import * as L from './Lexer'
+import { Seq } from './Parser'
 
 /* Zettel ::=
  *    zettel := tag, line item* ;
@@ -14,54 +15,59 @@ import * as L from './Lexer'
  *    operator := " ", ( ":" | ":=" | "<->" | "<-" | "->" | "~>" | "<=>" | "=>" | "!=" | "==" | "+" | "vs." ), " " ;
  */
 
-const syntax: <Value>(fn: (acc: P.Acc) => Value) => P.P<Value> = fn => ctx => {
-  const acc = new P.Acc(ctx)
-  const value = fn(acc)
-  return acc.end(value)
-}
-
 /***********************************************************************
  * Text
  ***********************************************************************/
-//  TODO: bold, etc.
+// TODO: can abstract something here
 export interface Quote {
   type: 'quote'
   text: string
 }
-export interface Code {
-  type: 'code'
+export interface Tex {
+  type: 'blocktex' | 'inlinetex'
   text: string
 }
 export interface PlainText {
   type: 'plaintext'
   text: string
 }
+export interface Operator {
+  type: 'operator'
+  text: string
+}
+export interface Code {
+  type: 'code'
+  text: string
+}
 export interface Text {
   type: 'text'
-  text: (PlainText | Code | Quote)[]
+  text: (PlainText | Tex | Quote)[]
 }
+
+export const catchall: P.P<PlainText> = P.map(L.catchall, (text: string) => ({
+  type: 'plaintext',
+  text,
+}))
 
 export const plaintext: P.P<PlainText> = P.map(L.plaintext, (text: string) => ({
   type: 'plaintext',
   text,
 }))
 
-export const quote: P.P<Quote> = syntax(acc => {
-  acc.next(P.s`"`)
-  const text = acc.next(L.notquote)
-  acc.next(P.s`"`)
-  return { type: 'quote', text }
+export const quote: P.P<Quote> = P.map(P.surrounds(P.s`"`, L.notquote), text => ({
+  type: 'quote',
+  text,
+}))
+export const inlinetex: P.P<Tex> = P.map(P.surrounds(P.s`$`, L.notinlinetex), text => ({ type: 'inlinetex', text }))
+export const blocktex: P.P<Tex> = P.map(P.surrounds(P.s`$$`, L.notblocktex), text => ({ type: 'blocktex', text }))
+
+export const operator: P.P<Operator> = Seq(seq => {
+  const op = seq.next(L.operator)
+  return { type: 'operator', text: op?.trim() }
 })
 
-export const code: P.P<Code> = syntax(acc => {
-  acc.next(P.s`$`)
-  const text = acc.next(L.notcode)
-  acc.next(P.s`$`)
-  return { type: 'code', text }
-})
-
-export const text: P.P<Text> = syntax(acc => {
-  const values: Text['text'] = acc.next(P.some(P.any(code, quote, plaintext)))
+export const text: P.P<Text> = Seq(seq => {
+  const values: Text['text'] = seq.next(P.some(P.any(catchall, inlinetex, blocktex, quote, plaintext)))
   return { type: 'text', text: values }
 })
 
@@ -84,42 +90,32 @@ export interface Line {
   text: Text
 }
 
-const linktext: P.P<string> = syntax(acc => {
-  acc.next(P.s`[`)
-  const text = acc.next(P.regexp(/[^\]\n]*/))
-  acc.next(P.s`]`)
-  return text
-})
+export const linktext: P.P<string> = P.surrounds(P.s`[`, P.regexp(/[^\]\n]*/), P.s`]`)
+export const linkref: P.P<string> = P.surrounds(P.s`(`, P.regexp(/[^)\n]*/), P.s`)`)
 
-const linkref: P.P<string> = syntax(acc => {
-  acc.next(P.s`(`)
-  const link = acc.next(P.regexp(/[^)\n]*/))
-  acc.next(P.s`)`)
-  return link
-})
-
-export const link: P.P<Link> = syntax(acc => {
-  const text = acc.next(linktext)
-  const link = acc.next(P.optional(linkref))
+export const link: P.P<Link> = Seq(seq => {
+  const text = seq.next(linktext)
+  const link = seq.next(P.optional(linkref))
   return { type: 'link', text, link }
 })
 
-export const comment: P.P<Comment> = syntax(acc => {
-  acc.next(L.comment)
-  const text = acc.next(L.sameline)
+export const comment: P.P<Comment> = Seq(seq => {
+  seq.next(L.comment)
+  const text = seq.next(L.sameline)
   return { type: 'comment', text }
 })
 
 export const indent: P.P<number> = P.map(L.startofline, (spaces: string) => spaces.length)
 
-//TODO: should we separate listitems / link + comment? Then combine them in this `line()` function
-export const line: P.P<Line> = syntax(acc => {
-  const indent_ = acc.next(indent)
-  const lineitem = acc.next(P.any(L.unorderedListItem, L.labledListItem, link, comment))
+//TODO: separate listitems / link + comment? Then combine them in this `line()` function
+//TODO: instead have { type: 'line', indent: number, item: Link | comment | List }
+export const line: P.P<Line> = Seq(seq => {
+  const indent_ = seq.next(indent)
+  const lineitem = seq.next(P.any(L.unorderedListItem, L.labledListItem, link, comment))
   if (lineitem?.type === 'link' || lineitem?.type === 'comment') {
     return { type: 'line', indent: indent_, lineitem, text: { type: 'text', text: [] } }
   }
-  const text_ = acc.next(P.optional(P.ignore(L.space, text)))
+  const text_ = seq.next(P.optional(P.ignore(L.space, text)))
   return { type: 'line', indent: indent_, lineitem, text: text_ }
 })
 
@@ -147,23 +143,25 @@ export interface Zettel {
 export interface Syntax {
   comment: Comment
   link: Link
-  code: Code
+  blocktex: Tex
+  inlinetex: Tex
   plaintext: PlainText
   quote: Quote
+  operator: Operator
 }
 
 export type Type = keyof Zettel
 
 export type ZettelLine = Zettel[Type]
 
-export const tag: P.P<Tag> = syntax(acc => {
-  const num = acc.next(L.tag)?.length
-  const text = acc.next(L.sameline)
+export const tag: P.P<Tag> = Seq(seq => {
+  const num = seq.next(L.tag)?.length
+  const text = seq.next(L.sameline)
   return { type: 'tag', num, text }
 })
 
-export const zettel: P.P<ZettelLine[]> = syntax(acc => {
-  const lines: ZettelLine[] = acc.next(
+export const zettel: P.P<ZettelLine[]> = Seq(seq => {
+  const lines: ZettelLine[] = seq.next(
     P.many(
       P.any(
         text,

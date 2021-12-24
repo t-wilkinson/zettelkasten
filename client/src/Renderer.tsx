@@ -1,10 +1,13 @@
 import React from 'react'
 import { Syntax, Zettel, ZettelLine } from './Syntax'
+import 'katex/dist/katex.min.css'
+import { InlineMath, BlockMath } from 'react-katex'
 
 type Renderers<Obj> = {
   [key in keyof Obj]: (syntax: Obj[key]) => any
 }
 
+// TODO: performance: avoid defining functions, etc. in these renderers
 const renderers: Renderers<Zettel> = {
   line: s => {
     const lineitem =
@@ -24,17 +27,23 @@ const renderers: Renderers<Zettel> = {
       {s.text}
     </div>
   ),
-  text: ({ text }) => text.map(t => components[t.type](t as any)),
-  empty: s => '\n'.repeat(s.num),
+  text: ({ text }) => text?.map(t => components[t.type](t as any)),
+  empty: s => Array(s.num).fill(<br />),
 }
+
+const parseLink = (link: string) =>
+  !link ? '#' : link.startsWith('/home') ? `file://${link}` : link
 
 // prettier-ignore
 const components: Renderers<Syntax> = {
-  comment: s => <span>{'>'} {s.text}</span>,
-  link: s => <a href={s.link}>{s.text}</a>,
+  operator: s => <span className="z-operator">{s.text}</span>,
+  comment: s => <span className="z-comment">{'>'} {s.text}</span>,
+  link: s => <a href={parseLink(s.link)}>{s.text}</a>,
   plaintext: s => <span>{s.text}</span>,
   quote: s => <q className="z-quote">{s.text}</q>,
-  code: s => <code>{s.text}</code>,
+  inlinetex: s => <InlineMath>{s.text}</InlineMath>,
+  blocktex: s => <BlockMath>{s.text}</BlockMath>,
+  // code: s => <code>{s.text}</code>,
   ...renderers,
 }
 
