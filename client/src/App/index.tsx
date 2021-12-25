@@ -192,6 +192,18 @@ function search(query: string, files: Files) {
     }
     return acc
   }, [])
+
+  matches.sort((i1: number, i2: number) => {
+    const t1 = (fileTags(files[i1].body)[0] || '').toLowerCase()
+    const t2 = (fileTags(files[i2].body)[0] || '').toLowerCase()
+    if (t1 < t2) {
+      return -1
+    }
+    if (t1 > t2) {
+      return 1
+    }
+    return 0
+  })
   return matches
 }
 
@@ -218,7 +230,7 @@ const Search = ({ index, setIndex, files }) => {
       setTimeout(() => {
         const selected = getElementIndex(document.querySelector('.search__result:focus'))
         setFocused(selected)
-      }, 0)
+      }, 100)
     }
 
     document.querySelector('.search__results').addEventListener('keydown', onfocus)
@@ -258,6 +270,8 @@ const Search = ({ index, setIndex, files }) => {
 }
 
 const Preview = ({ content }) => {
+  return null
+  // TODO
   return (
     <div className="preview">
       <Zettel content={content} />

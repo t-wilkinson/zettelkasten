@@ -45,6 +45,7 @@
   background: var(--background);
   color: var(--foreground);
   border: solid 0.25rem var(--selection);
+  max-height: 80vh;
 }
 
 .search__bar {
@@ -61,6 +62,8 @@
   font-size: 10px;
   align-items: flex-start;
   padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .search__result {
@@ -85,5 +88,5 @@
   right: 0;
   background: var(--background);
   height: 300px;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
