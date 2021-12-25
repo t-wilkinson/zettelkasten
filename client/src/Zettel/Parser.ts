@@ -83,7 +83,7 @@ export const optional = bind((r, ctx) => (r.success ? success(r.ctx, r.value) : 
 export const sequence = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(combine))
 type Any = any
 // type Any = <T extends P[]>(...ps: T) => (ctx: C) => ReturnType<T[number]>
-export const any: Any = (...ps: P[]) => (ps.length === 0 ? success : ps.reduceRight(either))
+export const any: Any = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(either))
 export const eof = (ctx: C) => ctx.i === ctx.text.length - 1
 
 export const either: <V1, V2>(p1: P<V1>, p2: P<V2>) => (ctx: C) => R<V1 | V2> = bind(
@@ -119,7 +119,7 @@ export class Sequence {
 
   next<Value = any>(p: P<Value>): Value {
     if (!this.r$) {
-      this.r$ = p({...this.initialCtx})
+      this.r$ = p({ ...this.initialCtx })
       return this.r$.value
     }
     if (!this.r$.success) return

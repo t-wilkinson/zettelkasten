@@ -1,7 +1,7 @@
 import * as P from './Parser'
 import * as L from './Lexer'
 import * as S from './Syntax'
-import * as R from './Renderer'
+import * as R from './Render'
 
 import { render } from '@testing-library/react'
 
@@ -62,8 +62,10 @@ describe('Lexer', () => {
 })
 
 describe('Syntax', () => {
+  const tag = (text, num=1) => ({ num, type: 'tag', text: { text:  [ { text, type: 'plaintext'} ] } })
+
   test('tag', () => {
-    value('@@Hello world', S.tag, { num: 2, text: 'Hello world' })
+    value('@@Tag', S.tag, tag('Tag', 2))
   })
 
   test('indent', () => {
@@ -91,9 +93,17 @@ describe('Syntax', () => {
   test.each([
     ['$', plain('$')],
     ['"', plain('"')],
-    // [' => ', text({ text: '=>', type: 'operator' })],
-    // [' =>  text', text({ text: '=>', type: 'operator' }, { text: ' text', type: 'plaintext' })],
-    ['asdf $tex$ asdf', text({ text: 'asdf ' }, { text: 'tex' }, { text: ' asdf' })],
+    ['text => ', text({text: 'text', type: 'plaintext'}, { text: '=>', type: 'operator' })],
+    [' => ', text({ text: '=>', type: 'operator' })],
+    [' =>  text', text({ text: '=>', type: 'operator' }, { text: ' text', type: 'plaintext' })],
+    [
+      'asdf $tex$ asdf',
+      text(
+        { text: 'asdf ', type: 'plaintext' },
+        { type: 'inlinetex', text: 'tex' },
+        { text: ' asdf', type: 'plaintext' }
+      ),
+    ],
     ['asdf "quote" asdf', text({ text: 'asdf ' }, { text: 'quote' }, { text: ' asdf' })],
     [
       'asdf "quote" $tex$ asdf',

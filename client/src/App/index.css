@@ -1,0 +1,89 @@
+.App {
+  display: grid;
+  place-items: center;
+}
+
+.pre-white {
+  white-space: pre;
+}
+
+.file {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 2rem;
+  width: 100%;
+  max-width: 1100px;
+  position: relative;
+  overflow-x: hidden;
+  min-height: 85vh;
+}
+
+.file__editable-content:not(:focus) {
+  z-index: -1;
+}
+
+.file__editable-content {
+  white-space: pre;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0;
+}
+
+.search {
+  z-index: 10;
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 1.25rem;
+  background: var(--background);
+  color: var(--foreground);
+  border: solid 0.25rem var(--selection);
+}
+
+.search__bar {
+  color: var(--foreground);
+  border: none;
+  border-bottom: 0.25rem solid var(--selection);
+  background: var(--background);
+  padding: 0.5rem;
+}
+
+.search__results {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  align-items: flex-start;
+  padding: 8px;
+}
+
+.search__result {
+  cursor: pointer;
+  padding: 2px 2px;
+  width: 100%;
+}
+
+.search__result:focus {
+  outline: solid 2px var(--cyan);
+}
+
+.search__result--selected {
+  background: var(--selection);
+}
+
+.preview {
+  padding: 1rem;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--background);
+  height: 300px;
+  overflow-y: scroll;
+}

@@ -2,6 +2,7 @@ import React from 'react'
 import { Syntax, Zettel, ZettelLine } from './Syntax'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from 'react-katex'
+import './index.css'
 
 type Renderers<Obj> = {
   [key in keyof Obj]: (syntax: Obj[key]) => any
@@ -24,26 +25,29 @@ const renderers: Renderers<Zettel> = {
   tag: s => (
     <div className="z-tag">
       {'@'.repeat(s.num)}
-      {s.text}
+      {components[s.text.type](s.text)}
     </div>
   ),
   text: ({ text }) => text?.map(t => components[t.type](t as any)),
   empty: s => Array(s.num).fill(<br />),
 }
 
-const parseLink = (link: string) =>
-  !link ? '#' : link.startsWith('/home') ? `file://${link}` : link
+const parseLink = (link: string) =>{
+  return !link ? '#' : link.startsWith('/home') ? `file://${link}` : link
+}
 
 // prettier-ignore
 const components: Renderers<Syntax> = {
-  operator: s => <span className="z-operator">{s.text}</span>,
+  operator: s => <span className="z-operator"> {s.text} </span>,
   comment: s => <span className="z-comment">{'>'} {s.text}</span>,
-  link: s => <a href={parseLink(s.link)}>{s.text}</a>,
-  plaintext: s => <span>{s.text}</span>,
+  link: s => <a href={parseLink(s.link)} className="z-link">{s.text}</a>,
+  plaintext: s => s.text,
   quote: s => <q className="z-quote">{s.text}</q>,
   inlinetex: s => <InlineMath>{s.text}</InlineMath>,
   blocktex: s => <BlockMath>{s.text}</BlockMath>,
-  // code: s => <code>{s.text}</code>,
+  code: s => <code>{s.text}</code>,
+  striked: s => <span className="z-striked">{s.text}</span>,
+  bold: s => <span className="z-bold">{s.text}</span>,
   ...renderers,
 }
 

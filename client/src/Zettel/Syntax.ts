@@ -18,56 +18,66 @@ import { Seq } from './Parser'
 /***********************************************************************
  * Text
  ***********************************************************************/
-// TODO: can abstract something here
-export interface Quote {
-  type: 'quote'
+export interface TextItem {
+  type: 'quote' | 'plaintext' | 'code' | 'operator' | 'blocktex' | 'inlinetex' | 'striked' | 'bold'
   text: string
 }
-export interface Tex {
-  type: 'blocktex' | 'inlinetex'
-  text: string
-}
-export interface PlainText {
-  type: 'plaintext'
-  text: string
-}
-export interface Operator {
-  type: 'operator'
-  text: string
-}
-export interface Code {
-  type: 'code'
-  text: string
-}
+
 export interface Text {
   type: 'text'
-  text: (PlainText | Tex | Quote)[]
+  text: TextItem[]
 }
 
-export const catchall: P.P<PlainText> = P.map(L.catchall, (text: string) => ({
-  type: 'plaintext',
-  text,
-}))
+const maketext: <TextType = TextItem['type']>(
+  type: TextType,
+  p: P.P<string>
+) => P.P<{ type: TextType; text: string }> = (type, p) =>
+  P.map(p, (text: string) => ({ type, text }))
 
-export const plaintext: P.P<PlainText> = P.map(L.plaintext, (text: string) => ({
-  type: 'plaintext',
-  text,
-}))
+export const bold = maketext<'bold'>('bold', P.surrounds(P.str('*'), L.not.bold))
+export const striked = maketext<'striked'>('striked', P.surrounds(P.str('~~'), L.not.strike))
+export const code = maketext<'code'>('code', P.surrounds(P.str('```'), L.not.code))
+export const catchall = maketext<'plaintext'>('plaintext', L.catchall)
+export const plaintext = maketext('plaintext', L.plaintext)
+export const quote = maketext<'quote'>('quote', P.surrounds(P.s`"`, L.not.quote))
+export const inlinetex = maketext<'inlinetex'>('inlinetex', P.surrounds(P.s`$`, L.not.inlinetex))
+export const blocktex = maketext<'blocktex'>('blocktex', P.surrounds(P.s`$$`, L.not.blocktex))
 
-export const quote: P.P<Quote> = P.map(P.surrounds(P.s`"`, L.notquote), text => ({
-  type: 'quote',
-  text,
-}))
-export const inlinetex: P.P<Tex> = P.map(P.surrounds(P.s`$`, L.notinlinetex), text => ({ type: 'inlinetex', text }))
-export const blocktex: P.P<Tex> = P.map(P.surrounds(P.s`$$`, L.notblocktex), text => ({ type: 'blocktex', text }))
-
-export const operator: P.P<Operator> = Seq(seq => {
+export const operator: P.P<TextItem> = Seq(seq => {
   const op = seq.next(L.operator)
   return { type: 'operator', text: op?.trim() }
 })
 
+// TODO: this needs performance improvement, etc.
 export const text: P.P<Text> = Seq(seq => {
-  const values: Text['text'] = seq.next(P.some(P.any(catchall, inlinetex, blocktex, quote, plaintext)))
+  let values: TextItem[] = seq.next(
+    // TODO: can combine catchall and plaintext
+    P.some(P.any(operator, bold, striked, code, quote, blocktex, inlinetex, plaintext, catchall))
+  )
+
+  // TODO: this has bad time complexity
+  // convert any sequence of plaintexts/catchall to a single plaintext because it gets broken up
+  const res = values.reduce(
+    ({ values, plaintext }, { type, text }) => {
+      if (type !== 'plaintext') {
+        if (plaintext.length !== 0) {
+          values.push({ type: 'plaintext', text: ''.concat(...plaintext) })
+          plaintext = []
+        }
+        values.push({ type, text })
+      } else {
+        plaintext.push(text)
+      }
+      return { values, plaintext }
+    },
+    { values: [], plaintext: [] }
+  )
+
+  if (res.plaintext.length !== 0) {
+    res.values.push({ type: 'plaintext', text: ''.concat(...res.plaintext) })
+  }
+  values = res.values
+
   return { type: 'text', text: values }
 })
 
@@ -111,7 +121,7 @@ export const indent: P.P<number> = P.map(L.startofline, (spaces: string) => spac
 //TODO: instead have { type: 'line', indent: number, item: Link | comment | List }
 export const line: P.P<Line> = Seq(seq => {
   const indent_ = seq.next(indent)
-  const lineitem = seq.next(P.any(L.unorderedListItem, L.labledListItem, link, comment))
+  const lineitem = seq.next(P.any(comment, link, L.labledListItem, L.unorderedListItem))
   if (lineitem?.type === 'link' || lineitem?.type === 'comment') {
     return { type: 'line', indent: indent_, lineitem, text: { type: 'text', text: [] } }
   }
@@ -125,7 +135,7 @@ export const line: P.P<Line> = Seq(seq => {
 export interface Tag {
   type: Type
   num: number
-  text: string
+  text: Text | Link
 }
 
 export interface Empty {
@@ -140,14 +150,11 @@ export interface Zettel {
   empty: Empty
 }
 
-export interface Syntax {
+export type Syntax = {
   comment: Comment
   link: Link
-  blocktex: Tex
-  inlinetex: Tex
-  plaintext: PlainText
-  quote: Quote
-  operator: Operator
+} & {
+  [key in TextItem['type']]: Text
 }
 
 export type Type = keyof Zettel
@@ -156,18 +163,18 @@ export type ZettelLine = Zettel[Type]
 
 export const tag: P.P<Tag> = Seq(seq => {
   const num = seq.next(L.tag)?.length
-  const text = seq.next(L.sameline)
-  return { type: 'tag', num, text }
+  const text_ = seq.next(P.any(link, text))
+  return { type: 'tag', num, text: text_ }
 })
 
 export const zettel: P.P<ZettelLine[]> = Seq(seq => {
   const lines: ZettelLine[] = seq.next(
     P.many(
       P.any(
-        text,
-        P.map(L.newlines, (newlines: string) => ({ type: 'empty', num: newlines.length - 1 })),
+        line,
         tag,
-        line
+        P.map(L.newlines, (newlines: string) => ({ type: 'empty', num: newlines.length - 1 })),
+        text
       )
     )
   )

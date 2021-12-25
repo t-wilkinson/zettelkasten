@@ -1,15 +1,13 @@
 const Koa = require('koa')
-const Router = require('@koa/router')
-const glob = require('glob')
-const { readFile } = require('fs/promises')
-const path = require('path')
-const bodyParser = require('koa-bodyparser')
-const fs = require('fs')
+const WebSocket = require('koa-websocket')
 
 const app = new Koa()
-const router = new Router()
+const socket = WebSocket(app)
+const bodyParser = require('koa-bodyparser')
 
-const zettelkastenDir = process.argv[2]
+app.on('error', err => {
+  console.error('server error', err)
+})
 
 app.use(async (ctx, next) => {
   await next()
@@ -24,37 +22,18 @@ app.use(async (ctx, next) => {
   await next()
 })
 
-app.on('error', err => {
-  console.error('server error', err)
-})
-
-router.get('/zettels', async ctx => {
-  const fileNames = glob.sync(`${zettelkastenDir}/**/*.zettel`)
-  const files = await Promise.all(
-    fileNames.map(async fileName => {
-      const fileBody = await readFile(fileName, 'utf8')
-      return {
-        body: fileBody,
-        name: path.relative(zettelkastenDir, fileName),
-      }
-    })
-  )
-
-  ctx.body = files
-  ctx.set('Content-Type', 'application/json')
-})
-
-router.put('/zettels/:filename', async ctx => {
-  const { filename } = ctx.params
-  fs.writeFileSync(`./test+${filename}`, ctx.request.body)
-  ctx.body = null
-})
-
+const http = require('./http')
 // prettier-ignore
 app
   .use(bodyParser({ enableTypes: ['text', 'plain', 'json']}))
-  .use(router.routes())
-  .use(router.allowedMethods())
+  .use(http.routes())
+  .use(http.allowedMethods())
+
+const ws = require('./ws')
+// prettier-ignore
+app.ws
+  .use(ws.routes())
+  .use(ws.allowedMethods())
 
 const port = 4000
 console.info(`Listening on port ${port}`)

@@ -1,0 +1,45 @@
+.z-operator {
+  color: var(--cyan);
+  white-space: pre;
+  font-weight: bold;
+}
+
+.z-tag {
+  font-weight: bold;
+  color: var(--purple);
+}
+
+.z-lineitem {
+  font-weight: bold;
+  color: var(--cyan);
+}
+
+.z-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.z-code {
+  color: var(--green);
+}
+
+.z-comment {
+  color: var(--comment);
+}
+
+.z-quote {
+  color: var(--orange);
+}
+
+.z-link {
+  color: var(--pink);
+}
+
+.z-striked {
+  color: var(--green);
+}
+
+.z-bold {
+  color: var(--yellow);
+  font-weight: bold;
+}

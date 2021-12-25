@@ -8,15 +8,22 @@ export const startofline = P.regexp(/^ */)
 export const comment = P.s`> `
 export const tag = P.regexp(/^@+/)
 
-export const notnewline = P.regexp(/^[^\n]/)
-export const notinlinetex = P.regexp(/^[^$\n]+/)
-export const notblocktex = P.regexp(/^[^$$]+/)
-export const notquote = P.regexp(/[^"\n]+/)
+export const not = {
+  newline: P.regexp(/^[^\n]/),
+  inlinetex: P.regexp(/^[^$\n]+/),
+  blocktex: P.regexp(/^[^$$]+/),
+  quote: P.regexp(/[^"\n]+/),
+  code: P.regexp(/[^`]+/),
+  strike: P.regexp(/[^~]+/),
+  bold: P.regexp(/[^*]+/),
+}
 
-export const plaintext = P.regexp(/^[^$"\n]+/)
 export const alphanumeric = P.regexp(/^[A-Za-z0-9]+/)
 export const operator = P.regexp(/^ (:|:=|<->|<-|->|~>|<=>|=>|!=|==|\+|vs\.) /)
-export const catchall = P.regexp(/^[$"]/)
+
+const ignorechars = '$~`"* '
+export const plaintext = P.regexp(new RegExp(`^[^${ignorechars}\\n]+`))
+export const catchall = P.regexp(new RegExp(`^[${ignorechars}]`))
 
 export const unorderedListItem = P.regexp(/^[-+!*¿?✘★✓]/)
 export const labledListItem = (ctx: P.C) =>
