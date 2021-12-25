@@ -18,6 +18,7 @@
   position: relative;
   overflow-x: hidden;
   min-height: 85vh;
+  overflow-y: hidden;
 }
 
 .file__editable-content:not(:focus) {

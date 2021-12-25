@@ -194,15 +194,17 @@ function search(query: string, files: Files) {
   }, [])
 
   matches.sort((i1: number, i2: number) => {
-    const t1 = (fileTags(files[i1].body)[0] || '').toLowerCase()
-    const t2 = (fileTags(files[i2].body)[0] || '').toLowerCase()
+    const tags1 = fileTags(files[i1].body)
+    const tags2 = fileTags(files[i2].body)
+    const t1 = (tags1[0] || '').toLowerCase()
+    const t2 = (tags2[0] || '').toLowerCase()
     if (t1 < t2) {
       return -1
     }
     if (t1 > t2) {
       return 1
     }
-    return 0
+    return (files[i1].body.match(/@/g) || []).length - (files[i2].body.match(/@/g) || []).length
   })
   return matches
 }
