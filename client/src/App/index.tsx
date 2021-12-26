@@ -4,18 +4,34 @@ import Zettel from '../Zettel'
 import ContentEditable from 'react-contenteditable'
 import './index.css'
 
+import { parse } from '../Zettel/Parser'
+import { zettel, Line } from '../Zettel/Syntax'
+import { getText } from '../Zettel/Render'
+
+const EVENT_LEVEL = 'debug'
+
 type File = { name: string; body: string }
 type Files = File[]
 
 const getFile = async (name: string): Promise<File> =>
   fetch(`http://localhost:4000/zettels/${name}`, {
     method: 'GET',
-  }).then(res => res.json())
+  })
+    .then(res => res.json())
+    .then(res => {
+      dispatch({ type: 'get-file', data: name, status: 'debug' })
+      return res
+    })
 
 const getFiles = async () =>
   fetch('http://localhost:4000/zettels', {
     method: 'GET',
-  }).then(res => res.json())
+  })
+    .then(res => res.json())
+    .then(res => {
+      dispatch({ type: 'get-files', status: 'debug' })
+      return res
+    })
 
 const saveFile = (name: string, body: string) =>
   fetch(`http://localhost:4000/zettels/${name}`, {
@@ -24,7 +40,55 @@ const saveFile = (name: string, body: string) =>
       'Content-Type': 'text/plain',
     },
     body,
+  }).then(res => {
+    dispatch({ type: 'save-file', data: name, status: 'success' })
+    return res
   })
+
+interface ZettelEvent {
+  type: string
+  data?: any
+  status: 'error' | 'default' | 'success' | 'debug'
+}
+
+const dispatch = ({ type, data, status = 'default' }: ZettelEvent) => {
+  if (EVENT_LEVEL !== 'debug' && status === 'debug') {
+    return
+  }
+  const event = new CustomEvent('zettel', { detail: { type, data, status } })
+  document.dispatchEvent(event)
+}
+
+const Events = () => {
+  const [events, setEvents] = React.useState({})
+  React.useEffect(() => {
+    const onEvent = (e: CustomEvent<ZettelEvent>) => {
+      setEvents(events => ({ ...events, [e.timeStamp]: e.detail }))
+      setTimeout(() => {
+        setEvents(events => {
+          let eventsNew = { ...events }
+          delete eventsNew[e.timeStamp]
+          return eventsNew
+        })
+      }, 3000)
+    }
+    document.addEventListener('zettel', onEvent)
+    return () => document.removeEventListener('zettel', onEvent)
+  }, [])
+
+  return (
+    <article className="events">
+      {Object.values(events)
+        .reverse()
+        .map((event: ZettelEvent) => (
+          <div className={`events__event events__event--${event.status}`}>
+            {event.status === 'debug' && event.type}
+            {event.data}
+          </div>
+        ))}
+    </article>
+  )
+}
 
 function App() {
   const [files, setFiles] = React.useState<Files>([])
@@ -62,17 +126,6 @@ function App() {
 
   React.useEffect(() => {
     getFiles().then(files => setFiles(files))
-    const searchBar = e => {
-      if (e.key === 'Enter') {
-        const e = document.activeElement as HTMLElement
-        if (e.classList.contains('search__result')) {
-          e.click()
-        } else if (e.classList.contains('search__bar')) {
-          document.querySelector('.search__result').click()
-        }
-      }
-    }
-
     // @ts-ignore
     const focusContent = e => {
       e.key === 'Enter' && e.ctrlKey && document.querySelector('.file__editable-content').focus()
@@ -80,10 +133,8 @@ function App() {
     }
 
     document.body.addEventListener('keydown', focusContent)
-    document.querySelector('.search').addEventListener('keydown', searchBar)
     return () => {
       document.body.removeEventListener('keydown', focusContent)
-      document.querySelector('.search').removeEventListener('keydown', searchBar)
     }
   }, [])
 
@@ -96,10 +147,12 @@ function App() {
   }, [onChange])
 
   return (
-    <div className="App">
-      <Search index={index} setIndex={setIndex} files={files} />
+    <main className="App">
+      <Events />
+      <TableOfContents content={files[index]?.body} />
       <DisplayFile index={index} files={files} />
-    </div>
+      <Search index={index} setIndex={setIndex} files={files} />
+    </main>
   )
 }
 
@@ -143,27 +196,80 @@ const DisplayFile = ({ index, files }) => {
   }
 
   return (
-    <div className="file">
+    <section className="file">
       <ContentEditable
         html={content}
         className="file__editable-content"
         onChange={saveContent}
         // @ts-ignore
-        onFocus={() => document.activeElement?.blur()}
+        onFocus={() => {
+          document.activeElement?.blur()
+          document.querySelector('.search__bar').focus()
+        }}
       />
       <Zettel content={file?.body} />
-    </div>
+    </section>
   )
 }
 
-const escape = (s: string) => s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+interface TOCLine {
+  indent: number
+  text: string
+  i: number
+}
+
+const TableOfContents = ({ content }) => {
+  const parsed = parse(content || '', zettel)
+  const shouldRender = (t: Line, i: number) => {
+    if (t.type !== 'line') {
+      return false
+    }
+    if (t.text.type === 'comment' || t.text.type === 'link') {
+      return false
+    }
+
+    const next = parsed.value?.[i + 2]
+    return t.type === 'line' && t.indent <= 4 && next?.indent === t.indent + 4
+  }
+
+  const lines = parsed.value?.reduce((acc: TOCLine[], t: Line, i: number) => {
+    if (!shouldRender(t, i)) {
+      return acc
+    }
+
+    acc.push({
+      indent: t.indent,
+      text: getText(t.text),
+      i,
+    })
+
+    return acc
+  }, [])
+
+  return (
+    <aside className="toc">
+      {fileTags(content)?.map(tag => (
+        <div className="z-tag">{tag.tag}</div>
+      ))}
+      <br />
+      {lines.map((line: TOCLine) => (
+        <div className="toc__line">
+          {' '.repeat(line.indent)}
+          <a href={`#${line.i}`}>{line.text}</a>
+        </div>
+      ))}
+    </aside>
+  )
+}
+
+const escape = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
 
 function search(query: string, files: Files) {
   const lowercase = new RegExp(/^[^A-Z]*$/)
   const toRegExp = (q: string) => {
     let negative = false
     let regex: RegExp
-    if (q.at(0) === '!') {
+    if (q[0] === '!') {
       q = q.substring(1)
       negative = true
     }
@@ -196,8 +302,8 @@ function search(query: string, files: Files) {
   matches.sort((i1: number, i2: number) => {
     const tags1 = fileTags(files[i1].body)
     const tags2 = fileTags(files[i2].body)
-    const t1 = (tags1[0] || '').toLowerCase()
-    const t2 = (tags2[0] || '').toLowerCase()
+    const t1 = (tags1[0].tag || '').toLowerCase()
+    const t2 = (tags2[0].tag || '').toLowerCase()
     if (t1 < t2) {
       return -1
     }
@@ -210,17 +316,20 @@ function search(query: string, files: Files) {
 }
 
 function fileTags(content: string) {
-  const tags = content.match(/^@.*$/gm)
-  return tags
+  const tags = content?.match(/^@.*$/gm)
+  return tags?.map(tag => ({ tag, num: (tag.match(/^@+/g)[0] || []).length }))
 }
 
 function previewFile({ body }: File) {
-  return fileTags(body).join(' ').substring(0, 30)
+  return fileTags(body)
+    .map(({ tag }) => tag)
+    .join(' ')
+    .substring(0, 30)
 }
 
-function getElementIndex(element: HTMLElement) {
-  return element ? Array.from(element.parentNode.children).indexOf(element) : -1
-}
+// function getElementIndex(element: HTMLElement) {
+//   return element ? Array.from(element.parentNode.children).indexOf(element) : -1
+// }
 
 const Search = ({ index, setIndex, files }) => {
   const [query, setQuery] = React.useState('@')
@@ -230,16 +339,33 @@ const Search = ({ index, setIndex, files }) => {
   React.useEffect(() => {
     const onfocus = () => {
       setTimeout(() => {
-        const selected = getElementIndex(document.querySelector('.search__result:focus'))
-        setFocused(selected)
+        const result = document.querySelector('.search__result:focus') as HTMLElement
+        setFocused(Number(result?.id))
       }, 100)
     }
 
+    const searchBar = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        const element = document.activeElement as HTMLElement
+        if (element.classList.contains('search__result')) {
+          element.click()
+        } else if (element.classList.contains('search__bar')) {
+          document.querySelector('.search__result').click()
+        }
+      }
+    }
+
     document.querySelector('.search__results').addEventListener('keydown', onfocus)
+    document.querySelector('.search').addEventListener('keydown', searchBar)
     return () => {
       document.querySelector('.search__results').removeEventListener('keydown', onfocus)
+      document.querySelector('.search').removeEventListener('keydown', searchBar)
     }
   }, [])
+
+  React.useEffect(() => {
+    setFocused(index)
+  }, [index])
 
   React.useEffect(() => {
     try {
@@ -249,13 +375,18 @@ const Search = ({ index, setIndex, files }) => {
   }, [query, files])
 
   return (
-    <div className="search">
-      <input className="search__bar" value={query} onChange={e => setQuery(e.target.value)} tabIndex={5} />
-      <div className="search__results" tabIndex={-1}>
+    <aside className="search">
+      <input
+        className="search__bar"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        tabIndex={5}
+      />
+      <div className="search__results" tabIndex={5}>
         {matches.map(match => (
           <div
             id={match.toString()}
-            tabIndex={0}
+            tabIndex={5}
             className={`search__result ${match === index ? 'search__result--selected' : ''}`}
             onClick={() => {
               setIndex(match)
@@ -267,17 +398,15 @@ const Search = ({ index, setIndex, files }) => {
         ))}
       </div>
       {files[focused] && focused !== index && <Preview content={files[focused].body} />}
-    </div>
+    </aside>
   )
 }
 
 const Preview = ({ content }) => {
-  return null
-  // TODO
   return (
-    <div className="preview">
+    <section className="preview">
       <Zettel content={content} />
-    </div>
+    </section>
   )
 }
 

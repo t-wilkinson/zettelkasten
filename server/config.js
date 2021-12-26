@@ -1,10 +1,16 @@
 const fs = require('fs')
 
-const path = process.argv[2] || './test'
-if (!fs.existsSync(path)) {
-  fs.mkdirSync(path)
+const notesDir = process.argv[2] || './test/notes'
+if (!fs.existsSync(notesDir)) {
+  fs.mkdirSync(notesDir)
+}
+
+const staticFileDir = process.argv[3] || './test/static'
+if (!fs.existsSync(staticFileDir)) {
+  fs.mkdirSync(staticFileDir)
 }
 
 module.exports = {
-  path, // Default notes directory
+  notesDir, // Default notes directory
+  staticFileDir,
 }

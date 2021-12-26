@@ -62,7 +62,11 @@ describe('Lexer', () => {
 })
 
 describe('Syntax', () => {
-  const tag = (text, num=1) => ({ num, type: 'tag', text: { text:  [ { text, type: 'plaintext'} ] } })
+  const tag = (text, num = 1) => ({
+    num,
+    type: 'tag',
+    text: { text: [{ text, type: 'plaintext' }] },
+  })
 
   test('tag', () => {
     value('@@Tag', S.tag, tag('Tag', 2))
@@ -76,12 +80,12 @@ describe('Syntax', () => {
 
   const text = (...values) => ({ type: 'text', text: values })
 
-  const line = (lineitem, text, indent) => ({
+  const line = (indent, text) => ({
     type: 'line',
-    lineitem,
-    text,
     indent,
+    text,
   })
+  const list = (listitem, text) => ({ type: 'list', listitem, text })
   const link = (text, link) => ({ text, link, type: 'link' })
   const plain = text => ({
     type: 'text',
@@ -93,7 +97,7 @@ describe('Syntax', () => {
   test.each([
     ['$', plain('$')],
     ['"', plain('"')],
-    ['text => ', text({text: 'text', type: 'plaintext'}, { text: '=>', type: 'operator' })],
+    ['text => ', text({ text: 'text', type: 'plaintext' }, { text: '=>', type: 'operator' })],
     [' => ', text({ text: '=>', type: 'operator' })],
     [' =>  text', text({ text: '=>', type: 'operator' }, { text: ' text', type: 'plaintext' })],
     [
@@ -125,33 +129,40 @@ describe('Syntax', () => {
   })
 
   test.each([
-    ['- line text', S.line, line('-', plain('line text'), 0)],
-    ['    - line text', S.line, line('-', plain('line text'), 4)],
-    ['  ab. line text', S.line, line('ab.', plain('line text'), 2)],
-    ['ab.cd.ef. line text', S.line, line('ab.cd.ef.', plain('line text'), 0)],
-    ['    [text](link)', S.line, line(link('text', 'link'), plain(), 4)],
-    ['    > text', S.line, line(comment('text'), plain(), 4)],
+    ['- line text', S.line, line(0, list('-', plain('line text')))],
+    ['  - line text', S.line, line(2, list('-', plain('line text')))],
+    ['  ab. line text', S.line, line(2, list('ab.', plain('line text')))],
+    ['ab.cd.ef. line text', S.line, line(0, list('ab.cd.ef.', plain('line text')))],
+    ['  [text](link)', S.line, line(2, link('text', 'link'))],
+    ['  > text', S.line, line(2, comment('text'))],
   ])('line: %s', value)
 
   test.each([
-    // [`  => text`, [text({ text: '=>', type: 'operator' }, { text: 'text', type: 'plaintext' })]],
-    [`  > text`, [line(comment('text'), plain(), 2)]],
+    ['', []],
     [
-      `  > one\n  > two`,
-      [line(comment('one'), plain(), 2), empty(), line(comment('two'), plain(), 2)],
+      `  => text`,
+      [
+        text(
+          { text: ' ', type: 'plaintext' },
+          { text: '=>', type: 'operator' },
+          { text: 'text', type: 'plaintext' }
+        ),
+      ],
     ],
+    [`  > text`, [line(2, comment('text'))]],
+    [`  > one\n  > two`, [line(2, comment('one')), empty(), line(2, comment('two'))]],
     [
       `\nfirst\n  - second\n`,
-      [empty(), plain('first'), empty(), line('-', plain('second'), 2), empty()],
+      [empty(), plain('first'), empty(), line(2, list('-', plain('second'))), empty()],
     ],
-    [`\n- thoughts\n`, [empty(), line('-', plain('thoughts'), 0), empty()]],
+    [`\n- thoughts\n`, [empty(), line(0, list('-', plain('thoughts'))), empty()]],
     [
       `- thoughts\n[text](link)`,
-      [line('-', plain('thoughts'), 0), empty(), line(link('text', 'link'), plain(), 0)],
+      [line(0, list('-', plain('thoughts'))), empty(), line(0, link('text', 'link'))],
     ],
     [
       `[text](link)\n- thoughts`,
-      [line(link('text', 'link'), plain(), 0), empty(), line('-', plain('thoughts'), 0)],
+      [line(0, link('text', 'link')), empty(), line(0, list('-', plain('thoughts')))],
     ],
   ])('zettel:\n%s', (str, v) => value(str, S.zettel, v))
 })

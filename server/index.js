@@ -1,18 +1,24 @@
 const Koa = require('koa')
 const WebSocket = require('koa-websocket')
+const staticFileServer = require('koa-static')
+const mount = require('koa-mount')
+const path = require('path')
+const config = require('./config')
 
 const app = new Koa()
 const socket = WebSocket(app)
 const bodyParser = require('koa-bodyparser')
+const staticFiles = require('koa-router')()
 
 app.on('error', err => {
   console.error('server error', err)
 })
 
 app.use(async (ctx, next) => {
+  const start = new Date().getTime()
   await next()
-  const rt = ctx.response.get('X-Response-Time')
-  console.info(`${ctx.method} ${ctx.url} - ${rt}`)
+  const end = new Date().getTime()
+  console.info(`${ctx.method} ${ctx.url} - ${end - start}ms`)
 })
 
 app.use(async (ctx, next) => {
@@ -21,6 +27,17 @@ app.use(async (ctx, next) => {
   ctx.set('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS')
   await next()
 })
+
+// Static file server
+app.use(mount('/files', (ctx, next) => {
+  ctx.request.path = path.relative(config.staticFileDir, ctx.request.path)
+  return staticFileServer(config.staticFileDir)(ctx, next)
+}))
+
+// prettier-ignore
+app
+  .use(staticFiles.routes())
+  .use(staticFiles.allowedMethods())
 
 const http = require('./http')
 // prettier-ignore

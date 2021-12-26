@@ -72,23 +72,27 @@ export const some: <Value>(p: P<Value>) => (ctx: C) => R<Value[]> = bind((r, _ct
   }
 })
 
-const combine = bind((r1, _ctx, _p1, p2): R => {
-  if (!r1.success) return r1
-  const r2 = p2(r1.ctx)
-  return { ...r2, value: r1.value + r2.value }
-})
+const combine = (
+  onSucc: (r2: R, r1: R, p1: P, p2: P) => any = r2 => r2,
+  onFail: (r: R, p1: P, p2: P) => any = r => r
+) =>
+  bind((r1, _ctx, p1, p2): R => {
+    if (!r1.success) return onFail(r1, p1, p2)
+    const r2 = p2(r1.ctx)
+    return onSucc(r2, r1, p1, p2)
+  })
 
-export const ignore = bind((r, _ctx, _p1, p2) => (r.success ? p2(r.ctx) : r))
+export const add = combine((r2, r1) => ({ ...r2, value: r1.value + r2.value }))
+export const ignore = combine()
+export const either: <V1, V2>(p1: P<V1>, p2: P<V2>) => (ctx: C) => R<V1 | V2> = bind(
+  (r, ctx, _p1, p2) => (r.success ? r : p2(ctx))
+)
 export const optional = bind((r, ctx) => (r.success ? success(r.ctx, r.value) : success(ctx)))
-export const sequence = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(combine))
+export const sequence = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(add))
 type Any = any
 // type Any = <T extends P[]>(...ps: T) => (ctx: C) => ReturnType<T[number]>
 export const any: Any = (...ps: P[]) => (ps.length === 0 ? success : ps.reduce(either))
 export const eof = (ctx: C) => ctx.i === ctx.text.length - 1
-
-export const either: <V1, V2>(p1: P<V1>, p2: P<V2>) => (ctx: C) => R<V1 | V2> = bind(
-  (r, ctx, _p1, p2) => (r.success ? r : p2(ctx))
-)
 
 export const s = (strings: TemplateStringsArray) => str(strings[0])
 export const str = (str: string) => (ctx: C) => {

@@ -9,7 +9,11 @@
   color: var(--purple);
 }
 
-.z-lineitem {
+.z-list {
+  white-space: pre-wrap;
+}
+
+.z-listitem {
   font-weight: bold;
   color: var(--cyan);
 }
@@ -33,10 +37,11 @@
 
 .z-link {
   color: var(--pink);
+  text-decoration: none;
 }
 
 .z-striked {
-  color: var(--green);
+  color: var(--yellow);
 }
 
 .z-bold {

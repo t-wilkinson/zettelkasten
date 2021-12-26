@@ -48,14 +48,10 @@ export const operator: P.P<TextItem> = Seq(seq => {
   return { type: 'operator', text: op?.trim() }
 })
 
-// TODO: this needs performance improvement, etc.
-export const text: P.P<Text> = Seq(seq => {
-  let values: TextItem[] = seq.next(
-    // TODO: can combine catchall and plaintext
-    P.some(P.any(operator, bold, striked, code, quote, blocktex, inlinetex, plaintext, catchall))
-  )
+export const styles = P.any(operator, bold, striked, code, quote, blocktex, inlinetex)
 
-  // TODO: this has bad time complexity
+// TODO: this is inefficient
+const flattenText = (values: TextItem[]) => {
   // convert any sequence of plaintexts/catchall to a single plaintext because it gets broken up
   const res = values.reduce(
     ({ values, plaintext }, { type, text }) => {
@@ -77,8 +73,12 @@ export const text: P.P<Text> = Seq(seq => {
     res.values.push({ type: 'plaintext', text: ''.concat(...res.plaintext) })
   }
   values = res.values
+  return values
+}
 
-  return { type: 'text', text: values }
+export const text: P.P<Text> = Seq(seq => {
+  let values: TextItem[] = seq.next(P.some(P.any(styles, plaintext, catchall)))
+  return { type: 'text', text: flattenText(values) }
 })
 
 /***********************************************************************
@@ -93,18 +93,22 @@ export interface Comment {
   type: 'comment'
   text: string
 }
+export interface List {
+  type: 'list'
+  listitem: string
+  text: Text | Link
+}
 export interface Line {
-  type: Type
-  lineitem: string | Link | Comment
+  type: 'line'
   indent: number
-  text: Text
+  text: Link | Comment | List
 }
 
 export const linktext: P.P<string> = P.surrounds(P.s`[`, P.regexp(/[^\]\n]*/), P.s`]`)
 export const linkref: P.P<string> = P.surrounds(P.s`(`, P.regexp(/[^)\n]*/), P.s`)`)
 
 export const link: P.P<Link> = Seq(seq => {
-  const text = seq.next(linktext)
+  const text = seq.next(P.any(linktext, P.regexp(/^http\S*/)))
   const link = seq.next(P.optional(linkref))
   return { type: 'link', text, link }
 })
@@ -115,18 +119,18 @@ export const comment: P.P<Comment> = Seq(seq => {
   return { type: 'comment', text }
 })
 
+export const list: P.P<List> = Seq(seq => {
+  const listitem = seq.next(P.any(L.unorderedListItem, L.labledListItem, L.timeListItem))
+  const text_ = seq.next(P.optional(P.ignore(L.space, P.any(link, text))))
+  return { type: 'list', listitem, text: text_ }
+})
+
 export const indent: P.P<number> = P.map(L.startofline, (spaces: string) => spaces.length)
 
-//TODO: separate listitems / link + comment? Then combine them in this `line()` function
-//TODO: instead have { type: 'line', indent: number, item: Link | comment | List }
 export const line: P.P<Line> = Seq(seq => {
   const indent_ = seq.next(indent)
-  const lineitem = seq.next(P.any(comment, link, L.labledListItem, L.unorderedListItem))
-  if (lineitem?.type === 'link' || lineitem?.type === 'comment') {
-    return { type: 'line', indent: indent_, lineitem, text: { type: 'text', text: [] } }
-  }
-  const text_ = seq.next(P.optional(P.ignore(L.space, text)))
-  return { type: 'line', indent: indent_, lineitem, text: text_ }
+  const text_ = seq.next(P.any(styles, list, link, comment))
+  return { type: 'line', indent: indent_, text: text_ }
 })
 
 /***********************************************************************
@@ -152,9 +156,12 @@ export interface Zettel {
 
 export type Syntax = {
   comment: Comment
+  list: List
   link: Link
 } & {
   [key in TextItem['type']]: Text
+} & {
+  [key in keyof Zettel]: Zettel[key]
 }
 
 export type Type = keyof Zettel

@@ -1,46 +1,46 @@
 import React from 'react'
-import { Syntax, Zettel, ZettelLine } from './Syntax'
+import { Syntax, TextItem, Zettel, ZettelLine } from './Syntax'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from 'react-katex'
 import './index.css'
 
 type Renderers<Obj> = {
-  [key in keyof Obj]: (syntax: Obj[key]) => any
+  [key in keyof Obj]: (syntax: Obj[key], i?: number) => any
 }
 
-// TODO: performance: avoid defining functions, etc. in these renderers
+const defRender = (s: Syntax[keyof Syntax]) => components[s.type]?.(s as any)
+
+// prettier-ignore
 const renderers: Renderers<Zettel> = {
-  line: s => {
-    const lineitem =
-      typeof s.lineitem === 'string' ? (
-        <span className="z-lineitem">{s.lineitem}</span>
-      ) : (
-        components[s.lineitem.type](s.lineitem as any)
-      )
-    // prettier-ignore
-    return (
-      <div className="z-line">{' '.repeat(s.indent)}{lineitem} {renderers.text(s.text)}</div>
-    )
-  },
+  line: (s, i) => <div id={i.toString()}className="z-line">{' '.repeat(s.indent)}{defRender(s.text)}</div>,
   tag: s => (
     <div className="z-tag">
       {'@'.repeat(s.num)}
-      {components[s.text.type](s.text)}
+      {defRender(s.text)}
     </div>
   ),
-  text: ({ text }) => text?.map(t => components[t.type](t as any)),
+  text: ({ text }) => text?.map((t) => defRender(t as any)),
   empty: s => Array(s.num).fill(<br />),
 }
 
-const parseLink = (link: string) =>{
-  return !link ? '#' : link.startsWith('/home') ? `file://${link}` : link
+const parseLink = ({ link, text }: Syntax['link']) => {
+  const href = text.startsWith('http')
+    ? text
+    : !link
+    ? '#'
+    : link.startsWith('/home')
+    ? `http://localhost:4000/files${link}`
+    : link
+  const target = href.startsWith('#') ? '_self' : '_blank'
+  return { href, target }
 }
 
 // prettier-ignore
-const components: Renderers<Syntax> = {
+export const components: Renderers<Syntax> = {
+  list: s => <span className="z-list"><span className="z-listitem">{s.listitem}</span> {defRender(s.text)}</span>,
   operator: s => <span className="z-operator"> {s.text} </span>,
   comment: s => <span className="z-comment">{'>'} {s.text}</span>,
-  link: s => <a href={parseLink(s.link)} className="z-link">{s.text}</a>,
+  link: s => <a {...parseLink(s)} className="z-link">{s.text}</a>,
   plaintext: s => s.text,
   quote: s => <q className="z-quote">{s.text}</q>,
   inlinetex: s => <InlineMath>{s.text}</InlineMath>,
@@ -51,14 +51,25 @@ const components: Renderers<Syntax> = {
   ...renderers,
 }
 
-export const render = (syntaxes: ZettelLine[]) => {
-  return syntaxes.map((syntax: ZettelLine) => {
+export const getText = ({ text, type }) => {
+  switch (type) {
+    case 'list':
+      return getText(text)
+    case 'text':
+      return text.map((t: TextItem) => t.text).join('')
+    case 'comment':
+    default:
+      return text?.text
+  }
+}
+
+export const render = (syntaxes: ZettelLine[]) =>
+  syntaxes.map((syntax: ZettelLine, i) => {
     if (!syntax) {
       return null
     } else if (Array.isArray(syntax)) {
       return render(syntax)
     } else {
-      return renderers[syntax.type](syntax as any)
+      return renderers[syntax.type](syntax as any, i)
     }
   })
-}
