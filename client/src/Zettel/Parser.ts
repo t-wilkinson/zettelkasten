@@ -113,7 +113,7 @@ export const regexp = (regexp: RegExp) => (ctx: C) => {
   return success(ctx, res[0], ctx.i + res[0].length)
 }
 
-export class Sequence {
+export class ParserBuilder {
   r$: R // The last response
   initialCtx: C
 
@@ -132,18 +132,14 @@ export class Sequence {
   }
 
   end<Value = any>(value: Value) {
-    // return failure(this.initialCtx, this.r$.reason)
-    // if (!this.r$.success) {
-    //   return failure(this.initialCtx, this.r$.reason)
-    // }
     return { ...this.r$, value }
   }
 }
 
-export const Seq: <Value>(fn: (acc: Sequence) => Value) => P<Value> = fn => ctx => {
-  const seq = new Sequence(ctx)
-  const value = fn(seq)
-  return seq.end(value)
+export const Seq: <Value>(fn: (acc: ParserBuilder) => Value) => P<Value> = fn => ctx => {
+  const builder = new ParserBuilder(ctx)
+  const value = fn(builder)
+  return builder.end(value)
 }
 
 export const surrounds = (left: P, inner: P, right: P = left) =>
@@ -153,15 +149,3 @@ export const surrounds = (left: P, inner: P, right: P = left) =>
     seq.next(right)
     return value
   })
-
-// Doing this requires passing backtracking information on all failures
-// export const not = bind((r, ctx) => r.success ? failure(ctx, `Not supposed to match parser with ${r.value}`) : success(r.ctx, ctx.text.substring(ctx.i, r.ctx.i)))
-
-// export const ignoreSeq = (...ps: P[]) => ps.length === 0 ? success : ps.reduce(ignore as any)
-
-// export const merge = (rs: R[], i: number) => ({ ...rs[rs.length - 1], value: rs[i].value })
-// export const switchValue = (r: R, value: any) => ({...r, value })
-
-// const satisfy = fn => ctx => fn(ctx.text[ctx.i])
-//   ? success(ctx, ctx.text[ctx.i], ctx.i + 1)
-//   : failure(ctx, `Could not satisfy parser on ${ctx.text[ctx.i]} at ${ctx.i}`)

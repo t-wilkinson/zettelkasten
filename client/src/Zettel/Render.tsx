@@ -1,8 +1,8 @@
 import React from 'react'
-import { Syntax, TextItem, Zettel, ZettelLine } from './Syntax'
+import { Syntax, TextItem, ZettelLine } from './Syntax'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from 'react-katex'
-import './index.css'
+import './styles.css'
 
 type Renderers<Obj> = {
   [key in keyof Obj]: (syntax: Obj[key], i?: number) => any
@@ -11,18 +11,6 @@ type Renderers<Obj> = {
 const defRender = (s: Syntax[keyof Syntax]) => components[s.type]?.(s as any)
 
 // prettier-ignore
-const renderers: Renderers<Zettel> = {
-  line: (s, i) => <div id={i.toString()}className="z-line">{' '.repeat(s.indent)}{defRender(s.text)}</div>,
-  tag: s => (
-    <div className="z-tag">
-      {'@'.repeat(s.num)}
-      {defRender(s.text)}
-    </div>
-  ),
-  text: ({ text }) => text?.map((t) => defRender(t as any)),
-  empty: s => Array(s.num).fill(<br />),
-}
-
 const parseLink = ({ link, text }: Syntax['link']) => {
   const href = text.startsWith('http')
     ? text
@@ -48,7 +36,16 @@ export const components: Renderers<Syntax> = {
   code: s => <code>{s.text}</code>,
   striked: s => <span className="z-striked">{s.text}</span>,
   bold: s => <span className="z-bold">{s.text}</span>,
-  ...renderers,
+
+  line: (s, i) => <div id={i.toString()}className="z-line">{' '.repeat(s.indent)}{defRender(s.text)}</div>,
+  tag: s => (
+    <div className="z-tag">
+      {'@'.repeat(s.num)}
+      {defRender(s.text)}
+    </div>
+  ),
+  text: ({ text }) => text?.map((t) => defRender(t as any)),
+  empty: s => Array(s.num).fill(<br />),
 }
 
 export const getText = ({ text, type }) => {
@@ -57,7 +54,6 @@ export const getText = ({ text, type }) => {
       return getText(text)
     case 'text':
       return text.map((t: TextItem) => t.text).join('')
-    case 'comment':
     default:
       return text?.text
   }
@@ -70,6 +66,6 @@ export const render = (syntaxes: ZettelLine[]) =>
     } else if (Array.isArray(syntax)) {
       return render(syntax)
     } else {
-      return renderers[syntax.type](syntax as any, i)
+      return components[syntax.type](syntax as any, i)
     }
   })

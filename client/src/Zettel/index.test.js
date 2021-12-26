@@ -164,7 +164,7 @@ describe('Syntax', () => {
       `[text](link)\n- thoughts`,
       [line(0, link('text', 'link')), empty(), line(0, list('-', plain('thoughts')))],
     ],
-  ])('zettel:\n%s', (str, v) => value(str, S.zettel, v))
+  ])('zettel:\n%s', (str, v) => value(str, S.zettellines, v))
 })
 
 describe('Renderer', () => {
@@ -175,7 +175,7 @@ describe('Renderer', () => {
   - First thought
   - Second thought
 `,
-      S.zettel
+      S.zettellines
     ).value
     render(R.render(syntaxes))
   })

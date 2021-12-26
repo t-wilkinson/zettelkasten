@@ -174,7 +174,7 @@ export const tag: P.P<Tag> = Seq(seq => {
   return { type: 'tag', num, text: text_ }
 })
 
-export const zettel: P.P<ZettelLine[]> = Seq(seq => {
+export const zettellines: P.P<ZettelLine[]> = Seq(seq => {
   const lines: ZettelLine[] = seq.next(
     P.many(
       P.any(
