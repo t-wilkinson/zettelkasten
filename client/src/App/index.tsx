@@ -5,55 +5,59 @@ import './styles.css'
 
 import Zettel from '../Zettel'
 import { Events } from '../Events'
-import { Files, api } from '../Zettel/api'
+import { api } from '../Zettel/api'
 import TableOfContents from './TableOfContents'
 import Search from './Search'
+import { StoreContext, reducer, initialState } from './store'
 
 function App() {
-  const [files, setFiles] = React.useState<Files>([])
-  const [index, setIndex] = React.useState<number>(null)
+  const [state, dispatch] = React.useReducer(reducer, initialState)
 
   const onChange = React.useCallback(
-    event => {
-      const fileindex = files.findIndex(file => file.name === event.data)
-      const filename = files[fileindex]?.name
+    (event: any) => {
+      const fileindex = state.files.findIndex(file => file.name === event.data)
+      const filename = state.files[fileindex]?.name
       filename &&
         api.getFile(filename).then(file => {
-          setFiles(() => {
-            const files_ = files.slice(0)
-            files_[index] = file
-            return files_
-          })
+          dispatch({ type: 'set-file', file })
         })
     },
-    [index, files]
+    [state.files]
   )
 
   React.useEffect(() => {
     const i = Number(window.history.state?.index)
-    if (files.length === 0) {
-    } else if (i > files.length - 1) {
-      window.history.replaceState({ index: null }, null, `?`)
-      setIndex(null)
+    if (state.files.length === 0) {
+      dispatch({ type: 'clear-index' })
+    } else if (i > state.files.length - 1) {
+      window.history.replaceState({}, '', `?`)
+      dispatch({ type: 'clear-index' })
     } else if (isNaN(i)) {
-      window.history.replaceState({ index: 0 }, null, `?index=0`)
-      setIndex(0)
+      window.history.replaceState({ index: 0 }, '', `?index=0`)
+      dispatch({ type: 'reset-index' })
     } else {
-      setIndex(i)
+      dispatch({ type: 'set-index', index: i })
     }
-  }, [files])
+  }, [state.files])
 
   React.useEffect(() => {
-    api.getFiles().then(files => setFiles(files))
-    // @ts-ignore
-    const focusContent = e => {
-      e.key === 'Enter' && e.ctrlKey && document.querySelector('.file__editable-content').focus()
-      e.key === 'Enter' && e.shiftKey && document.querySelector('.search__bar').focus()
+    api.getFiles().then(files => dispatch({ type: 'update-files', files }))
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'm' && e.ctrlKey) {
+        e.preventDefault()
+        dispatch({ type: 'toggle-menu' })
+      }
+      if (e.key === 'Enter' && e.ctrlKey) {
+        document.querySelector<HTMLElement>('.file__editable-content')?.focus()
+      }
+      if (e.key === 'Enter' && e.shiftKey) {
+        document.querySelector<HTMLElement>('.search__bar')?.focus()
+      }
     }
 
-    document.body.addEventListener('keydown', focusContent)
+    document.body.addEventListener('keydown', onKeydown, true)
     return () => {
-      document.body.removeEventListener('keydown', focusContent)
+      document.body.removeEventListener('keydown', onKeydown)
     }
   }, [])
 
@@ -65,14 +69,16 @@ function App() {
     return () => socket.close()
   }, [onChange])
 
-  const zettel = new Zettel(files[index]?.body)
+  const zettel = new Zettel(state.files[state.index]?.body)
 
   return (
     <main className="App">
-      <Events />
-      <TableOfContents zettel={zettel} />
-      <DisplayFile index={index} files={files} zettel={zettel} />
-      <Search index={index} setIndex={setIndex} files={files} />
+      <StoreContext.Provider value={{ state, dispatch }}>
+        <Events />
+        <TableOfContents zettel={zettel} />
+        <DisplayFile zettel={zettel} />
+        <Search />
+      </StoreContext.Provider>
     </main>
   )
 }
@@ -84,7 +90,9 @@ const normalizeContent = (content: string) => {
   return content
 }
 
-const DisplayFile = ({ index, files, zettel}) => {
+const DisplayFile = ({ zettel }) => {
+  const { state } = React.useContext(StoreContext)
+
   const content = React.useMemo(
     () =>
       renderToString(
@@ -109,8 +117,8 @@ const DisplayFile = ({ index, files, zettel}) => {
   const saveContent = () => {
     const element = document.querySelector('.file__editable-content') as any
     const innerText = normalizeContent(element.innerText)
-    if (innerText !== files[index].body) {
-      api.saveFile(files[index].name, innerText)
+    if (innerText !== state.files[state.index].body) {
+      api.saveFile(state.files[state.index].name, innerText)
     }
   }
 
@@ -122,8 +130,8 @@ const DisplayFile = ({ index, files, zettel}) => {
         onChange={saveContent}
         // @ts-ignore
         onFocus={() => {
-          document.activeElement?.blur()
-          document.querySelector('.search__bar').focus()
+          ;(document.activeElement as HTMLElement).blur()
+          document.querySelector<HTMLElement>('.search__bar')?.focus()
         }}
       />
       {zettel.render}

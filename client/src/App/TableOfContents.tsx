@@ -1,35 +1,43 @@
+import React from 'react'
+
 import { Line } from '../Zettel/Syntax'
-import { getText } from '../Zettel/Render'
+import { defRender } from '../Zettel/Render'
+import { Zettel } from '../Zettel'
 
-interface TOCLine {
-  indent: number
-  text: string
-  i: number
-}
-
-const TableOfContents = ({ zettel }) => {
-  const shouldRender = (t: Line, i: number) => {
-    if (t.type !== 'line') {
+const TableOfContents = ({ zettel }: { zettel: Zettel }) => {
+  const shouldRender = (line: Line, i: number) => {
+    if (line.type !== 'line') {
       return false
     }
-    if (t.text.type === 'comment' || t.text.type === 'link') {
+    if (line.text.type === 'comment') {
       return false
     }
 
-    const next = zettel.syntax[i + 2]
-    return t.type === 'line' && t.indent <= 4 && next?.indent === t.indent + 4
+    const next = zettel.syntax[i + 2] as any
+    return line.type === 'line' && line.indent <= 4 && next?.indent === line.indent + 4
   }
 
-  const lines = zettel.syntax.reduce((acc: TOCLine[], t: Line, i: number) => {
-    if (!shouldRender(t, i)) {
+  const lines = zettel.syntax.reduce((acc: any[], line: any, i: number) => {
+    if (!shouldRender(line, i)) {
       return acc
     }
 
-    acc.push({
-      indent: t.indent,
-      text: getText(t.text),
-      i,
-    })
+    if (line.text.type === 'link') {
+      acc.push({
+        i,
+        indent: line.indent,
+        text: {
+          type: 'plaintext',
+          text: line?.text.text, // Line -> Link -> Text
+        }
+      })
+    } else {
+      acc.push({
+        i,
+        indent: line.indent,
+        text: line?.text?.text, // Line -> List -> Text
+      })
+    }
 
     return acc
   }, [])
@@ -40,10 +48,10 @@ const TableOfContents = ({ zettel }) => {
         <div className="z-tag">{tag.tag}</div>
       ))}
       <br />
-      {lines.map((line: TOCLine) => (
+      {lines.map((line: any) => (
         <div className="toc__line">
           {' '.repeat(line.indent)}
-          <a href={`#${line.i}`}>{line.text}</a>
+          &middot; <a href={`#${line.i}`}>{defRender(line.text as any)}</a>
         </div>
       ))}
     </aside>

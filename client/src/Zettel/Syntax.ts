@@ -45,7 +45,7 @@ export const blocktex = maketext<'blocktex'>('blocktex', P.surrounds(P.s`$$`, L.
 
 export const operator: P.P<TextItem> = Seq(seq => {
   const op = seq.next(L.operator)
-  return { type: 'operator', text: op?.trim() }
+  return { type: 'operator', text: (op || '').trim() }
 })
 
 export const styles = P.any(operator, bold, striked, code, quote, blocktex, inlinetex)
@@ -66,7 +66,7 @@ const flattenText = (values: TextItem[]) => {
       }
       return { values, plaintext }
     },
-    { values: [], plaintext: [] }
+    { values: [] as TextItem[], plaintext: [] as string[] }
   )
 
   if (res.plaintext.length !== 0) {
@@ -77,7 +77,7 @@ const flattenText = (values: TextItem[]) => {
 }
 
 export const text: P.P<Text> = Seq(seq => {
-  let values: TextItem[] = seq.next(P.some(P.any(styles, plaintext, catchall)))
+  let values: TextItem[] = seq.next(P.some(P.any(styles, plaintext, catchall))) || []
   return { type: 'text', text: flattenText(values) }
 })
 
@@ -115,7 +115,7 @@ export const link: P.P<Link> = Seq(seq => {
 
 export const comment: P.P<Comment> = Seq(seq => {
   seq.next(L.comment)
-  const text = seq.next(L.sameline)
+  const text = seq.next(L.sameline) || ''
   return { type: 'comment', text }
 })
 
@@ -128,7 +128,7 @@ export const list: P.P<List> = Seq(seq => {
 export const indent: P.P<number> = P.map(L.startofline, (spaces: string) => spaces.length)
 
 export const line: P.P<Line> = Seq(seq => {
-  const indent_ = seq.next(indent)
+  const indent_ = seq.next(indent) || 0
   const text_ = seq.next(P.any(styles, list, link, comment))
   return { type: 'line', indent: indent_, text: text_ }
 })
@@ -169,7 +169,7 @@ export type Type = keyof Zettel
 export type ZettelLine = Zettel[Type]
 
 export const tag: P.P<Tag> = Seq(seq => {
-  const num = seq.next(L.tag)?.length
+  const num = seq.next(L.tag)?.length || 0
   const text_ = seq.next(P.any(link, text))
   return { type: 'tag', num, text: text_ }
 })
@@ -184,6 +184,6 @@ export const zettellines: P.P<ZettelLine[]> = Seq(seq => {
         text
       )
     )
-  )
+  ) || []
   return lines
 })

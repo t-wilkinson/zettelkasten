@@ -8,7 +8,7 @@ type Renderers<Obj> = {
   [key in keyof Obj]: (syntax: Obj[key], i?: number) => any
 }
 
-const defRender = (s: Syntax[keyof Syntax]) => components[s.type]?.(s as any)
+export const defRender = (s: Syntax[keyof Syntax]) => components[s.type]?.(s as any)
 
 // prettier-ignore
 const parseLink = ({ link, text }: Syntax['link']) => {
@@ -37,7 +37,7 @@ export const components: Renderers<Syntax> = {
   striked: s => <span className="z-striked">{s.text}</span>,
   bold: s => <span className="z-bold">{s.text}</span>,
 
-  line: (s, i) => <div id={i.toString()}className="z-line">{' '.repeat(s.indent)}{defRender(s.text)}</div>,
+  line: (s, i) => <div id={i?.toString()}className="z-line">{' '.repeat(s.indent)}{defRender(s.text)}</div>,
   tag: s => (
     <div className="z-tag">
       {'@'.repeat(s.num)}

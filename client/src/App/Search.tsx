@@ -1,11 +1,12 @@
 import React from 'react'
 
+import { StoreContext } from './store'
 import { Zettel, fileTags } from '../Zettel'
-import { File, Files } from '../Zettel/api'
+import { api, File, Files } from '../Zettel/api'
 
 const escape = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
 
-function search(query: string, files: Files, {unique}: {unique: boolean}) {
+function search(query: string, files: Files, { unique }: { unique: boolean }) {
   const lowercase = new RegExp(/^[^A-Z]*$/)
   const toRegExp = (q: string) => {
     let negative = false
@@ -38,7 +39,7 @@ function search(query: string, files: Files, {unique}: {unique: boolean}) {
       acc.push(i)
     }
     return acc
-  }, [])
+  }, [] as number[])
 
   if (unique) {
     matches = matches.filter(match => fileTags(files[match].body).length === 1)
@@ -60,7 +61,6 @@ function search(query: string, files: Files, {unique}: {unique: boolean}) {
   return matches
 }
 
-
 function previewFile({ body }: File) {
   return fileTags(body)
     .map(({ tag }) => tag)
@@ -72,7 +72,8 @@ function previewFile({ body }: File) {
 //   return element ? Array.from(element.parentNode.children).indexOf(element) : -1
 // }
 
-const Search = ({ index, setIndex, files }) => {
+const Search = () => {
+  const { state, dispatch } = React.useContext(StoreContext)
   const [query, setQuery] = React.useState('@')
   const [matches, setMatches] = React.useState<number[]>([])
   const [focused, setFocused] = React.useState(-1)
@@ -87,74 +88,133 @@ const Search = ({ index, setIndex, files }) => {
     }
 
     const searchBar = (e: KeyboardEvent) => {
-      if (e.key === 'u' && e.ctrlKey) {
-        e.preventDefault()
-        setUnique(unique => !unique)
-      }
       if (e.key === 'Enter') {
         const element = document.activeElement as HTMLElement
         if (element.classList.contains('search__result')) {
           element.click()
         } else if (element.classList.contains('search__bar')) {
-          document.querySelector('.search__result').click()
+          document.querySelector<HTMLElement>('.search__result')?.click()
         }
       }
     }
 
-    document.querySelector('.search__results').addEventListener('keydown', onfocus)
-    document.querySelector('.search').addEventListener('keydown', searchBar)
+    document.querySelector<HTMLElement>('.search__results')?.addEventListener('keydown', onfocus)
+    document.querySelector<HTMLElement>('.search')?.addEventListener('keydown', searchBar)
     return () => {
-      document.querySelector('.search__results').removeEventListener('keydown', onfocus)
-      document.querySelector('.search').removeEventListener('keydown', searchBar)
+      document
+        .querySelector<HTMLElement>('.search__results')
+        ?.removeEventListener('keydown', onfocus)
+      document.querySelector<HTMLElement>('.search')?.removeEventListener('keydown', searchBar)
     }
   }, [])
 
   React.useEffect(() => {
-    setFocused(index)
-  }, [index])
+    setFocused(state.index)
+  }, [state.index])
 
   React.useEffect(() => {
     try {
-      const matches = search(query, files, {unique})
+      const matches = search(query, state.files, { unique })
       setMatches(matches)
     } catch {}
-  }, [query, files, unique])
+  }, [query, state.files, unique])
 
   return (
-    <aside className="search">
-      <input
-        className="search__bar"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        tabIndex={5}
-      />
+    <aside
+      className="search"
+      onBlurCapture={() => {
+        setFocused(-1)
+      }}
+    >
+      <div className="search__input-wrapper">
+        <input
+          tabIndex={5}
+          className="search__input"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+        />
+        <Menu setUnique={setUnique} query={query} />
+      </div>
       <div className="search__results" tabIndex={-1}>
         {matches.map(match => (
           <div
             id={match.toString()}
             tabIndex={5}
-            className={`search__result ${match === index ? 'search__result--selected' : ''}`}
+            className={`search__result ${match === state.index ? 'search__result--selected' : ''}`}
             onClick={() => {
-              setIndex(match)
-              window.history.replaceState({ index: match }, null, `?index=${match}`)
+              dispatch({ type: 'set-index', index: match })
+              window.history.replaceState({ index: match }, '', `?index=${match}`)
             }}
           >
-            {previewFile(files[match])}
+            {previewFile(state.files[match])}
           </div>
         ))}
       </div>
-      {files[focused] && focused !== index && <Preview content={files[focused].body} />}
+      {state.files[focused] && focused !== state.index && (
+        <Preview content={state.files[focused].body} />
+      )}
     </aside>
   )
 }
 
-const Preview = ({ content }) => {
-  const zettel = new Zettel(content)
+const Menu = ({
+  setUnique,
+  query,
+}: {
+  setUnique: (fn: (unique: boolean) => boolean) => void
+  query: string
+}) => {
+  const { state, dispatch } = React.useContext(StoreContext)
+
   return (
-    <section className="preview">
-      {zettel.render}
+    <section className="menu">
+      <button className="menu__button" onClick={() => dispatch({ type: 'open-menu' })}>
+        <div className="menu__line" />
+        <div className="menu__line" />
+        <div className="menu__line" />
+      </button>
+      {state.menuOpen && (
+        <aside className="menu__modal-background">
+          <div className="menu__modal">
+            <button className="menu__close" onClick={() => dispatch({ type: 'close-menu' })}>
+              X
+            </button>
+            <input
+              value=""
+              autoFocus
+              onKeyDown={(e: any) => {
+                if (e.key === 'd') {
+                  // delete file
+                  api.createFile(state.files[state.index].name)
+                }
+                if (e.key === 'n') {
+                  // create new file
+                  api.createFile(query)
+                }
+                if (e.key === 'u') {
+                  // toggle unique results
+                  setUnique(unique => !unique)
+                  dispatch({ type: 'close-menu' })
+                }
+                if (e.key === 'Escape') {
+                  dispatch({ type: 'close-menu' })
+                }
+              }}
+            />
+            <ul>
+              <li>Create new file</li>
+              <li>Delete file</li>
+            </ul>
+          </div>
+        </aside>
+      )}
     </section>
   )
+}
+
+const Preview = ({ content }: { content: string }) => {
+  const zettel = new Zettel(content)
+  return <section className="preview">{zettel.render}</section>
 }
 
 export default Search

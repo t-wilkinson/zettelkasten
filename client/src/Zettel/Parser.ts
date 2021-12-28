@@ -18,6 +18,7 @@ export interface Response<Value = any> {
   value?: Value
   reason?: string
 }
+// export type Response<Value=any>  = Success<Value> | Failure<Value>
 
 export type Parser<Value = any> = (ctx: Ctx) => Response<Value>
 
@@ -26,6 +27,7 @@ export type C = Ctx
 export type P<Value = any> = Parser<Value>
 
 export const parse = (text: string, p: P) => p({ text, i: 0 })
+
 export const success = <Value = any>(ctx: C, value: Value = '' as any, i = ctx.i) => ({
   ctx: { ...ctx, i },
   value,
@@ -51,7 +53,7 @@ export const map: <Value = any>(p: P, fn: (value: any) => Value) => (ctx: C) => 
 )
 
 export const many: <Value>(p: P<Value>) => (ctx: C) => R<Value[]> = bind((r, ctx, p) => {
-  let values = []
+  let values: any[] = []
   while (true) {
     if (!r.success) {
       return success(ctx, values)
@@ -67,7 +69,7 @@ export const some: <Value>(p: P<Value>) => (ctx: C) => R<Value[]> = bind((r, _ct
     return { ...r, value: [] }
   } else {
     const r2 = many(p)(r.ctx)
-    r2.value.unshift(r.value)
+    r2.value?.unshift(r.value as any)
     return r2
   }
 })
@@ -121,7 +123,7 @@ export class ParserBuilder {
     this.initialCtx = ctx
   }
 
-  next<Value = any>(p: P<Value>): Value {
+  next<Value = any>(p: P<Value>): Value | undefined {
     if (!this.r$) {
       this.r$ = p({ ...this.initialCtx })
       return this.r$.value

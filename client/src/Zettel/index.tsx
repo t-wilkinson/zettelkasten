@@ -2,11 +2,12 @@ import { render } from './Render'
 import { parse } from './Parser'
 import { zettellines, ZettelLine } from './Syntax'
 
-export type Tags = {tag: string, num: number}[]
+export type Tag = {tag: string, num: number}
+export type Tags = Tag[]
 
 export function fileTags(content: string): Tags {
-  const tags = content.match(/^@.*$/gm)
-  return tags.map(tag => ({ tag, num: (tag.match(/^@+/g)[0] || []).length }))
+  const tags = content.match(/^@.*$/gm) || []
+  return tags.map(tag => ({ tag, num: (tag.match(/^@+/g) || [''])[0].length }))
 }
 
 export class Zettel {

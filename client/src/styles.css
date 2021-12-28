@@ -1,5 +1,6 @@
 :root {
   --background: #282a36;
+  --background-rgb: 40, 42, 54;
   --current-line: #44475a;
   --selection: #44475a;
   --foreground: #f8f8f2;
