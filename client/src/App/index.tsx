@@ -5,21 +5,21 @@ import './styles.css'
 
 import Zettel from '../Zettel'
 import { Events } from '../Events'
-import { api } from '../Zettel/api'
+import { api, ZettelFile } from '../Zettel/api'
 import TableOfContents from './TableOfContents'
 import Search from './Search'
-import { StoreContext, reducer, initialState } from './store'
+import { StoreContext, reducer, initialState, State, Action } from './store'
 
 function App() {
-  const [state, dispatch] = React.useReducer(reducer, initialState)
+  const [state, dispatch] = React.useReducer<(state: State, action: Action) => State>(reducer, initialState)
 
   const onChange = React.useCallback(
     (event: any) => {
-      const fileindex = state.files.findIndex(file => file.name === event.data)
+      const fileindex = state.files.findIndex((file: ZettelFile) => file.name === event.data)
       const filename = state.files[fileindex]?.name
       filename &&
         api.getFile(filename).then(file => {
-          dispatch({ type: 'set-file', file })
+          dispatch({ type: 'update-file', file })
         })
     },
     [state.files]
@@ -30,7 +30,7 @@ function App() {
     if (state.files.length === 0) {
       dispatch({ type: 'clear-index' })
     } else if (i > state.files.length - 1) {
-      window.history.replaceState({}, '', `?`)
+      window.history.replaceState({index: 0}, '', `?index=0`)
       dispatch({ type: 'clear-index' })
     } else if (isNaN(i)) {
       window.history.replaceState({ index: 0 }, '', `?index=0`)
@@ -51,13 +51,13 @@ function App() {
         document.querySelector<HTMLElement>('.file__editable-content')?.focus()
       }
       if (e.key === 'Enter' && e.shiftKey) {
-        document.querySelector<HTMLElement>('.search__bar')?.focus()
+        document.querySelector<HTMLElement>('.search__input')?.focus()
       }
     }
 
     document.body.addEventListener('keydown', onKeydown, true)
     return () => {
-      document.body.removeEventListener('keydown', onKeydown)
+      document.body.removeEventListener('keydown', onKeydown, true)
     }
   }, [])
 
@@ -131,7 +131,7 @@ const DisplayFile = ({ zettel }) => {
         // @ts-ignore
         onFocus={() => {
           ;(document.activeElement as HTMLElement).blur()
-          document.querySelector<HTMLElement>('.search__bar')?.focus()
+          document.querySelector<HTMLElement>('.search__input')?.focus()
         }}
       />
       {zettel.render}

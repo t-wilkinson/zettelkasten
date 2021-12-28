@@ -2,11 +2,11 @@ import React from 'react'
 
 import { StoreContext } from './store'
 import { Zettel, fileTags } from '../Zettel'
-import { api, File, Files } from '../Zettel/api'
+import { api, ZettelFile } from '../Zettel/api'
 
 const escape = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
 
-function search(query: string, files: Files, { unique }: { unique: boolean }) {
+function search(query: string, files: ZettelFile[], { unique }: { unique: boolean }) {
   const lowercase = new RegExp(/^[^A-Z]*$/)
   const toRegExp = (q: string) => {
     let negative = false
@@ -61,7 +61,7 @@ function search(query: string, files: Files, { unique }: { unique: boolean }) {
   return matches
 }
 
-function previewFile({ body }: File) {
+function previewFile({ body }: ZettelFile) {
   return fileTags(body)
     .map(({ tag }) => tag)
     .join(' ')
@@ -92,19 +92,19 @@ const Search = () => {
         const element = document.activeElement as HTMLElement
         if (element.classList.contains('search__result')) {
           element.click()
-        } else if (element.classList.contains('search__bar')) {
+        } else if (element.classList.contains('search__input')) {
           document.querySelector<HTMLElement>('.search__result')?.click()
         }
       }
     }
 
-    document.querySelector<HTMLElement>('.search__results')?.addEventListener('keydown', onfocus)
-    document.querySelector<HTMLElement>('.search')?.addEventListener('keydown', searchBar)
+    const searchResults = document.querySelector<HTMLElement>('.search__results')
+    const search = document.querySelector<HTMLElement>('.search')
+    searchResults?.addEventListener('keydown', onfocus)
+    search?.addEventListener('keydown', searchBar)
     return () => {
-      document
-        .querySelector<HTMLElement>('.search__results')
-        ?.removeEventListener('keydown', onfocus)
-      document.querySelector<HTMLElement>('.search')?.removeEventListener('keydown', searchBar)
+      searchResults?.removeEventListener('keydown', onfocus)
+      search?.removeEventListener('keydown', searchBar)
     }
   }, [])
 
@@ -158,13 +158,30 @@ const Search = () => {
 }
 
 const Menu = ({
-  setUnique,
   query,
+  setUnique,
 }: {
-  setUnique: (fn: (unique: boolean) => boolean) => void
   query: string
+  setUnique: (fn: (unique: boolean) => boolean) => void
 }) => {
   const { state, dispatch } = React.useContext(StoreContext)
+
+  const onKeyDown = (e: any) => {
+    const close = () => dispatch({ type: 'close-menu' })
+    e.key === 'd' &&
+      api.deleteFile(state.files[state.index].name) &&
+      dispatch({ type: 'remove-file', index: state.index })
+    e.key === 'n' &&
+      api
+        .createFile(query)
+        .then(filename => dispatch({ type: 'create-file', file: { name: filename, body: query } }))
+    e.key === 'u' && setUnique(unique => !unique)
+    if (e.key === 'r') {
+      const randomIndex = Math.floor(Math.random() * state.files.length)
+      dispatch({ type: 'set-index', index: randomIndex })
+    }
+    ;['d', 'n', 'u', 'r', 'c'].includes(e.key) && close()
+  }
 
   return (
     <section className="menu">
@@ -179,31 +196,13 @@ const Menu = ({
             <button className="menu__close" onClick={() => dispatch({ type: 'close-menu' })}>
               X
             </button>
-            <input
-              value=""
-              autoFocus
-              onKeyDown={(e: any) => {
-                if (e.key === 'd') {
-                  // delete file
-                  api.createFile(state.files[state.index].name)
-                }
-                if (e.key === 'n') {
-                  // create new file
-                  api.createFile(query)
-                }
-                if (e.key === 'u') {
-                  // toggle unique results
-                  setUnique(unique => !unique)
-                  dispatch({ type: 'close-menu' })
-                }
-                if (e.key === 'Escape') {
-                  dispatch({ type: 'close-menu' })
-                }
-              }}
-            />
+            <input value="" autoFocus onKeyDown={onKeyDown} />
             <ul>
-              <li>Create new file</li>
-              <li>Delete file</li>
+              <li>create (n)ew file</li>
+              <li>(d)elete file</li>
+              <li>(u)nique tags</li>
+              <li>(c)lose menu</li>
+              <li>(r)andom zettel</li>
             </ul>
           </div>
         </aside>

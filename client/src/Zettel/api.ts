@@ -1,17 +1,16 @@
 import { dispatch } from '../Events'
 
-export type File = { name: string; body: string }
-export type Files = File[]
+export type ZettelFile = { name: string; body: string }
 
 const apiUrl = 'http://localhost:4000'
 
-const getFile = async (name: string): Promise<File> =>
+const getFile = async (name: string): Promise<ZettelFile> =>
   fetch(`${apiUrl}/zettels/${name}`, {
     method: 'GET',
   })
     .then(res => res.json())
     .then(res => {
-      dispatch({ type: 'get-file', data: name, status: 'debug' })
+      dispatch({ type: 'get-file', message: name, status: 'debug' })
       return res
     })
 
@@ -32,9 +31,8 @@ const saveFile = (name: string, body: string) =>
       'Content-Type': 'text/plain',
     },
     body,
-  }).then(res => {
-    dispatch({ type: 'save-file', data: name, status: 'success' })
-    return res
+  }).then(() => {
+    dispatch({ type: 'save-file', message: `Saved file ${name}`, status: 'success' })
   })
 
 const createFile = (tag: string) =>
@@ -45,10 +43,21 @@ const createFile = (tag: string) =>
     },
     body: JSON.stringify({ tag }),
   })
+    .then(res => res.json())
+    .then(res => {
+      dispatch({
+        type: 'create-file',
+        message: `Create file with content ${res.filename}`,
+        status: 'success',
+      })
+      return res.filename
+    })
 
 const deleteFile = (name: string) =>
   fetch(`${apiUrl}/zettels/${name}`, {
     method: 'DELETE',
+  }).then(() => {
+    dispatch({ type: 'delete-file', message: `Deleted file ${name}`, status: 'success' })
   })
 
 export const api = {

@@ -11,10 +11,10 @@
 
 .events {
   position: fixed;
-  top: 0;
+  bottom: 0;
   right: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   z-index: 999999999;
   margin: 0.5rem;
 }

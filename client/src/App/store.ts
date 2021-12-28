@@ -1,13 +1,25 @@
 import React from 'react'
-import { Files } from '../Zettel/api'
+import { ZettelFile } from '../Zettel/api'
 
 export interface State {
-  files: Files
+  files: ZettelFile[]
   index: number
   menuOpen: boolean
 }
 
-export type Action = any
+export type Action =
+  { type: 'remove-file'; index: number } |
+  { type: 'create-file'; file: ZettelFile } |
+  { type: 'update-file'; file: ZettelFile } |
+  { type: 'update-files'; files: ZettelFile[] } |
+
+  { type: 'clear-index' } |
+  { type: 'reset-index' } |
+  { type: 'set-index'; index: number} |
+
+  { type: 'open-menu' } |
+  { type: 'close-menu' } |
+  { type: 'toggle-menu' }
 
 export const initialState: State = {
   files: [],
@@ -15,14 +27,23 @@ export const initialState: State = {
   menuOpen: false,
 }
 
-export const reducer = (state: any, action: any) => {
+export const reducer = (state: State, action: Action): State => {
+  let files: ZettelFile[]
   switch (action.type) {
-    case 'set-file':
-      const files = state.files.slice(0)
+    case 'update-file':
+      files = state.files.slice(0)
       files[state.index] = action.file
       return { ...state, files }
     case 'update-files':
       return { ...state, files: action.files }
+    case 'remove-file':
+      files = state.files.slice(0)
+      files.splice(action.index, 1)
+      return {...state, files}
+    case 'create-file':
+      files = state.files.slice(0)
+      files.push(action.file)
+      return {...state, files, index: files.length - 1}
 
     case 'clear-index':
       return { ...state, index: -1 }
@@ -37,6 +58,7 @@ export const reducer = (state: any, action: any) => {
       return { ...state, menuOpen: false }
     case 'toggle-menu':
       return { ...state, menuOpen: !state.menuOpen }
+
     default:
       console.error(action)
       return state

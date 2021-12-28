@@ -129,8 +129,8 @@ describe('Syntax', () => {
   })
 
   test.each([
-    ['- line text', S.line, line(0, list('-', plain('line text')))],
-    ['  - line text', S.line, line(2, list('-', plain('line text')))],
+    ['- line text', S.line, line(0, list(S.defLineitem, plain('line text')))],
+    ['  - line text', S.line, line(2, list(S.defLineitem, plain('line text')))],
     ['  ab. line text', S.line, line(2, list('ab.', plain('line text')))],
     ['ab.cd.ef. line text', S.line, line(0, list('ab.cd.ef.', plain('line text')))],
     ['  [text](link)', S.line, line(2, link('text', 'link'))],
@@ -153,18 +153,38 @@ describe('Syntax', () => {
     [`  > one\n  > two`, [line(2, comment('one')), empty(), line(2, comment('two'))]],
     [
       `\nfirst\n  - second\n`,
-      [empty(), plain('first'), empty(), line(2, list('-', plain('second'))), empty()],
+      [empty(), plain('first'), empty(), line(2, list(S.defLineitem, plain('second'))), empty()],
     ],
-    [`\n- thoughts\n`, [empty(), line(0, list('-', plain('thoughts'))), empty()]],
+    [`\n- thoughts\n`, [empty(), line(0, list(S.defLineitem, plain('thoughts'))), empty()]],
     [
       `- thoughts\n[text](link)`,
-      [line(0, list('-', plain('thoughts'))), empty(), line(0, link('text', 'link'))],
+      [line(0, list(S.defLineitem, plain('thoughts'))), empty(), line(0, link('text', 'link'))],
     ],
     [
       `[text](link)\n- thoughts`,
-      [line(0, link('text', 'link')), empty(), line(0, list('-', plain('thoughts')))],
+      [line(0, link('text', 'link')), empty(), line(0, list(S.defLineitem, plain('thoughts')))],
     ],
   ])('zettel:\n%s', (str, v) => value(str, S.zettellines, v))
+})
+
+const time = (fn, iters = 10) => {
+  let total = 0
+  let start
+  let end
+  for (let i = 0; i < iters; i++) {
+    start = performance.now()
+    fn()
+    end = performance.now()
+    total += end - start
+  }
+  return total / iters
+}
+
+describe.skip('Timing', () => {
+  test('timing', () => {
+    const timing = time(() => P.parse(`- thoughts\n`.repeat(1000), S.zettellines))
+    console.log(timing)
+  })
 })
 
 describe('Renderer', () => {

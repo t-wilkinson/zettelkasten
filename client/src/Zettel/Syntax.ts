@@ -2,6 +2,8 @@ import * as P from './Parser'
 import * as L from './Lexer'
 import { Seq } from './Parser'
 
+export const defLineitem = '·'
+
 /* Zettel ::=
  *    zettel := tag, line item* ;
  *    tag   := "@", <!Line> ;
@@ -122,7 +124,7 @@ export const comment: P.P<Comment> = Seq(seq => {
 export const list: P.P<List> = Seq(seq => {
   const listitem = seq.next(P.any(L.unorderedListItem, L.labledListItem, L.timeListItem))
   const text_ = seq.next(P.optional(P.ignore(L.space, P.any(link, text))))
-  return { type: 'list', listitem, text: text_ }
+  return { type: 'list', listitem: listitem === '-' ? defLineitem : listitem, text: text_ }
 })
 
 export const indent: P.P<number> = P.map(L.startofline, (spaces: string) => spaces.length)
@@ -175,15 +177,16 @@ export const tag: P.P<Tag> = Seq(seq => {
 })
 
 export const zettellines: P.P<ZettelLine[]> = Seq(seq => {
-  const lines: ZettelLine[] = seq.next(
-    P.many(
-      P.any(
-        line,
-        tag,
-        P.map(L.newlines, (newlines: string) => ({ type: 'empty', num: newlines.length - 1 })),
-        text
+  const lines: ZettelLine[] =
+    seq.next(
+      P.many(
+        P.any(
+          line,
+          tag,
+          P.map(L.newlines, (newlines: string) => ({ type: 'empty', num: newlines.length - 1 })),
+          text
+        )
       )
-    )
-  ) || []
+    ) || []
   return lines
 })

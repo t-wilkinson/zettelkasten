@@ -2,9 +2,12 @@ const fs = require('fs')
 const glob = require('glob')
 const path = require('path')
 const { readFile } = require('fs/promises')
+const strftime = require('strftime')
 
 const http = require('koa-router')()
 const config = require('./config')
+
+const zettelPath = filename => `${config.notesDir}/${filename}`
 
 async function getFile(fileName) {
   const fileBody = await readFile(fileName, 'utf8')
@@ -32,7 +35,26 @@ http.get('/zettels/:filename', async ctx => {
 
 http.put('/zettels/:filename', async ctx => {
   const { filename } = ctx.params
-  fs.writeFileSync(`${config.notesDir}/${filename}`, ctx.request.body)
+  fs.writeFileSync(zettelPath(filename), ctx.request.body)
+  ctx.body = null
+})
+
+const newFileName = () => strftime('%Y%W%u%H%M%S.zettel', new Date())
+
+http.post('/zettels', async ctx => {
+  const { tag } = ctx.request.body
+  const filename = newFileName()
+  fs.writeFileSync(zettelPath(filename), tag)
+  ctx.body = {
+    filename,
+  }
+})
+
+http.delete('/zettels/:filename', async ctx => {
+  const { filename } = ctx.params
+  try {
+    fs.unlinkSync(zettelPath(filename))
+  } catch {}
   ctx.body = null
 })
 
