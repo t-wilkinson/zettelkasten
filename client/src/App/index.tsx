@@ -28,14 +28,18 @@ function App() {
   React.useEffect(() => {
     const i = Number(window.history.state?.index)
     if (state.files.length === 0) {
+      console.log(1)
       dispatch({ type: 'clear-index' })
     } else if (i > state.files.length - 1) {
+      console.log(2)
       window.history.replaceState({index: 0}, '', `?index=0`)
       dispatch({ type: 'clear-index' })
     } else if (isNaN(i)) {
+      console.log(3)
       window.history.replaceState({ index: 0 }, '', `?index=0`)
       dispatch({ type: 'reset-index' })
     } else {
+      console.log(4)
       dispatch({ type: 'set-index', index: i })
     }
   }, [state.files])
